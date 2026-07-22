@@ -4,6 +4,9 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   signOut as firebaseSignOut
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
 
@@ -43,9 +46,10 @@ try {
 }
 
 window.TrendyAuth = {
-  async signIn(email, password) {
+  async signIn(email, password, remember = true) {
     if (!auth) throw new Error('Estamos terminando de activar el acceso seguro.');
     try {
+      await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
       return await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (error) {
       throw friendlyError(error);
