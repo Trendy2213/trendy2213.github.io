@@ -86,7 +86,7 @@
     // quedado aisladas alrededor de la fotografía del producto.
     for (let start = 0; start < pixelCount; start += 1) {
       const offset = start * 4;
-      if (labels[start] || Math.min(pixels[offset], pixels[offset + 1], pixels[offset + 2]) > 242) continue;
+      if (labels[start] || Math.min(pixels[offset], pixels[offset + 1], pixels[offset + 2]) > 225) continue;
       component += 1;
       let head = 0;
       let tail = 0;
@@ -101,7 +101,7 @@
         for (const next of neighbours) {
           if (next < 0 || next >= pixelCount || labels[next]) continue;
           const nextOffset = next * 4;
-          if (Math.min(pixels[nextOffset], pixels[nextOffset + 1], pixels[nextOffset + 2]) > 242) continue;
+          if (Math.min(pixels[nextOffset], pixels[nextOffset + 1], pixels[nextOffset + 2]) > 225) continue;
           labels[next] = component;
           queue[tail++] = next;
         }
@@ -125,7 +125,12 @@
         pixels[i + 2] = 255;
         continue;
       }
-      if (min > 242) continue;
+      if (min > 225) {
+        pixels[i] = 255;
+        pixels[i + 1] = 255;
+        pixels[i + 2] = 255;
+        continue;
+      }
       const lightness = (max + min) / 510;
       if (lightness < 0.18) continue; // cremalleras y herrajes oscuros
       const adjustedLightness = Math.min(0.88, Math.max(0.06, baseLightness + lightness * lightnessGain));
@@ -170,10 +175,6 @@
       const drawX = (1000 - width) / 2;
       const drawY = (760 - height) / 2;
       canvasContext.drawImage(source, sx, sy, sw, sh, drawX, drawY, width, height);
-      if (['MC954', 'MC953', 'MC951', 'MC950'].includes(card.dataset.reference)) {
-        canvasContext.fillStyle = '#fff';
-        canvasContext.fillRect(drawX - 2, drawY + height * 0.72, width * 0.18, height * 0.30);
-      }
       recolorProduct(COLORS[colorIndex]);
       selectedPreview = createPreview();
       sheetImage.hidden = true;
