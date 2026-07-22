@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.5 seconds
+Output:
 (() => {
   const COLORS = ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 'Morado', 'Verde salvia', 'Negro'];
   const phone = '34688124938';
@@ -270,7 +273,15 @@
       cart.push({ ...selectedProduct, color: selectedColor, qty, preview: selectedPreview });
     }
     saveCart();
-    closeModal(productModal);
+    productModal.querySelector('.quantity input').value = 1;
+    const addButton = productModal.querySelector('.add-selected');
+    const originalLabel = addButton.textContent;
+    addButton.textContent = `${selectedColor} añadido al pedido ✓`;
+    addButton.classList.add('added');
+    window.setTimeout(() => {
+      addButton.textContent = originalLabel;
+      addButton.classList.remove('added');
+    }, 1400);
     floatButton.classList.remove('just-added');
     void floatButton.offsetWidth;
     floatButton.classList.add('just-added');
@@ -292,3 +303,4 @@
 
   saveCart();
 })();
+
