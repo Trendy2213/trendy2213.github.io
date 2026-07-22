@@ -54,7 +54,14 @@
   let selectedProduct = null;
   let selectedColor = '';
   let selectedPreview = '';
-  const isRegisteredClient = () => localStorage.getItem('trendy-client-approved') === 'true';
+  let authenticatedClient = false;
+  const isRegisteredClient = () => authenticatedClient;
+
+  window.addEventListener('trendy-auth-state', event => {
+    authenticatedClient = Boolean(event.detail?.authenticated);
+    const logoutButton = loginModal.querySelector('.logout-button');
+    if (logoutButton) logoutButton.hidden = !authenticatedClient;
+  });
 
   const openLogin = message => {
     loginModal.querySelector('.login-feedback').textContent = message || '';
@@ -340,9 +347,40 @@
   document.querySelector('#header-login').addEventListener('click', () => {
     openLogin('');
   });
-  loginModal.querySelector('.login-form').addEventListener('submit', event => {
+  loginModal.querySelector('.login-form').addEventListener('submit', async event => {
     event.preventDefault();
-    loginModal.querySelector('.login-feedback').textContent = copy.pending;
+    const form = event.currentTarget;
+    const feedback = form.querySelector('.login-feedback');
+    const button = form.querySelector('[type="submit"]');
+    feedback.textContent = '';
+    button.disabled = true;
+    try {
+      await window.TrendyAuth.signIn(form.elements.email.value, form.elements.password.value);
+      feedback.textContent = 'Sesión iniciada correctamente.';
+      window.setTimeout(() => closeModal(loginModal), 650);
+    } catch (error) {
+      feedback.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+  loginModal.querySelector('.forgot-password').addEventListener('click', async () => {
+    const email = loginModal.querySelector('.login-form [name="email"]').value.trim();
+    const feedback = loginModal.querySelector('.login-feedback');
+    if (!email) {
+      feedback.textContent = 'Escribe primero tu correo electrónico.';
+      return;
+    }
+    try {
+      await window.TrendyAuth.resetPassword(email);
+      feedback.textContent = 'Te hemos enviado un correo para crear una nueva contraseña.';
+    } catch (error) {
+      feedback.textContent = error.message;
+    }
+  });
+  loginModal.querySelector('.logout-button').addEventListener('click', async () => {
+    await window.TrendyAuth.signOut();
+    loginModal.querySelector('.login-feedback').textContent = 'Sesión cerrada.';
   });
   loginModal.querySelector('.request-form').addEventListener('submit', event => {
     event.preventDefault();
