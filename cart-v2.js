@@ -172,7 +172,7 @@
       canvasContext.drawImage(source, sx, sy, sw, sh, drawX, drawY, width, height);
       if (['MC954', 'MC953', 'MC951', 'MC950'].includes(card.dataset.reference)) {
         canvasContext.fillStyle = '#fff';
-        canvasContext.fillRect(drawX - 2, drawY + height * 0.80, width * 0.12, height * 0.22);
+        canvasContext.fillRect(drawX - 2, drawY + height * 0.72, width * 0.18, height * 0.30);
       }
       recolorProduct(COLORS[colorIndex]);
       selectedPreview = createPreview();
