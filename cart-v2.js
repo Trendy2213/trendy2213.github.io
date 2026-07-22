@@ -14,7 +14,7 @@
     en: ['Form 036 *', 'Select Form 036. When your email app opens, attach this same file before sending.']
   }[lang];
   const enhancementStyles = document.createElement('style');
-  enhancementStyles.textContent = '.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}';
+  enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}';
   document.head.append(enhancementStyles);
   const COLORS = copy.colors;
   const VARIANT_CROPS = {
@@ -311,10 +311,16 @@
       });
     });
 
-    const text = orderText();
     const whatsappLink = cartModal.querySelector('.send-order');
-    whatsappLink.href = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-    whatsappLink.hidden = !cart.length;
+    const hasItems = cart.length > 0;
+    whatsappLink.hidden = !hasItems;
+    whatsappLink.setAttribute('aria-disabled', String(!hasItems));
+    if (hasItems) {
+      const text = orderText();
+      whatsappLink.href = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+    } else {
+      whatsappLink.removeAttribute('href');
+    }
     cartModal.hidden = false;
     document.body.style.overflow = 'hidden';
   };
