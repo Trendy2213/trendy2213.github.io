@@ -27,26 +27,63 @@
     });
   });
 
+  // Recortes medidos sobre cada ficha del proveedor. Cada rectángulo contiene
+  // únicamente el producto: quedan fuera referencia, medidas, nombres y unidades.
+  const CROP_MAP = {
+    MC955: [
+      [0.030, 0.505, 0.205, 0.205], [0.270, 0.505, 0.195, 0.205],
+      [0.515, 0.505, 0.195, 0.205], [0.755, 0.505, 0.215, 0.205],
+      [0.005, 0.745, 0.185, 0.205], [0.200, 0.745, 0.185, 0.205],
+      [0.395, 0.745, 0.190, 0.205], [0.595, 0.745, 0.190, 0.205],
+      [0.795, 0.745, 0.200, 0.205]
+    ],
+    MC959: [
+      [0.065, 0.560, 0.185, 0.190], [0.275, 0.560, 0.185, 0.190],
+      [0.490, 0.560, 0.185, 0.190], [0.705, 0.560, 0.190, 0.190],
+      [0.005, 0.770, 0.185, 0.190], [0.200, 0.770, 0.185, 0.190],
+      [0.395, 0.770, 0.190, 0.190], [0.595, 0.770, 0.190, 0.190],
+      [0.795, 0.770, 0.200, 0.190]
+    ],
+    MC956: [
+      [0.070, 0.535, 0.185, 0.205], [0.275, 0.535, 0.185, 0.205],
+      [0.485, 0.535, 0.185, 0.205], [0.695, 0.535, 0.190, 0.205],
+      [0.005, 0.760, 0.185, 0.190], [0.200, 0.760, 0.185, 0.190],
+      [0.395, 0.760, 0.190, 0.190], [0.595, 0.760, 0.190, 0.190],
+      [0.795, 0.760, 0.200, 0.190]
+    ],
+    MC954: [
+      [0.070, 0.620, 0.180, 0.135], [0.280, 0.620, 0.180, 0.135],
+      [0.490, 0.620, 0.180, 0.135], [0.700, 0.620, 0.185, 0.135],
+      [0.005, 0.790, 0.185, 0.140], [0.200, 0.790, 0.185, 0.140],
+      [0.395, 0.790, 0.190, 0.140], [0.595, 0.790, 0.190, 0.140],
+      [0.795, 0.790, 0.200, 0.140]
+    ],
+    MC953: [
+      [0.070, 0.610, 0.180, 0.150], [0.280, 0.610, 0.180, 0.150],
+      [0.490, 0.610, 0.180, 0.150], [0.700, 0.610, 0.185, 0.150],
+      [0.005, 0.785, 0.185, 0.145], [0.200, 0.785, 0.185, 0.145],
+      [0.395, 0.785, 0.190, 0.145], [0.595, 0.785, 0.190, 0.145],
+      [0.795, 0.785, 0.200, 0.145]
+    ],
+    MC951: [
+      [0.070, 0.610, 0.180, 0.150], [0.280, 0.610, 0.180, 0.150],
+      [0.490, 0.610, 0.180, 0.150], [0.700, 0.610, 0.185, 0.150],
+      [0.005, 0.785, 0.185, 0.145], [0.200, 0.785, 0.185, 0.145],
+      [0.395, 0.785, 0.190, 0.145], [0.595, 0.785, 0.190, 0.145],
+      [0.795, 0.785, 0.200, 0.145]
+    ],
+    MC950: [
+      [0.070, 0.620, 0.180, 0.155], [0.280, 0.620, 0.180, 0.155],
+      [0.490, 0.620, 0.180, 0.155], [0.700, 0.620, 0.185, 0.155],
+      [0.005, 0.800, 0.185, 0.145], [0.200, 0.800, 0.185, 0.145],
+      [0.395, 0.800, 0.190, 0.145], [0.595, 0.800, 0.190, 0.145],
+      [0.795, 0.800, 0.200, 0.145]
+    ]
+  };
+
   const cropFor = (reference, colorIndex) => {
-    const firstRow = colorIndex < 4;
-    const column = firstRow ? colorIndex : colorIndex - 4;
-    const compactSheet = ['MC954', 'MC953', 'MC951', 'MC950'].includes(reference);
-
-    if (reference === 'MC955') {
-      return firstRow
-        ? { x: column * 0.25, y: 0.51, w: 0.25, h: 0.24 }
-        : { x: column * 0.20, y: 0.75, w: 0.20, h: 0.24 };
-    }
-
-    if (compactSheet) {
-      return firstRow
-        ? { x: column * 0.25, y: 0.61, w: 0.25, h: 0.20 }
-        : { x: column * 0.20, y: 0.79, w: 0.20, h: 0.20 };
-    }
-
-    return firstRow
-      ? { x: column * 0.25, y: 0.52, w: 0.25, h: 0.24 }
-      : { x: column * 0.20, y: 0.75, w: 0.20, h: 0.24 };
+    const crop = CROP_MAP[reference]?.[colorIndex] || CROP_MAP.MC959[colorIndex];
+    return { x: crop[0], y: crop[1], w: crop[2], h: crop[3] };
   };
 
   const showSelectedColor = (card, colorIndex) => {
@@ -65,7 +102,7 @@
       canvasContext.imageSmoothingEnabled = true;
       canvasContext.imageSmoothingQuality = 'high';
 
-      const scale = Math.min(900 / sw, 660 / sh);
+      const scale = Math.min(860 / sw, 620 / sh);
       const width = sw * scale;
       const height = sh * scale;
       canvasContext.drawImage(source, sx, sy, sw, sh, (1000 - width) / 2, (760 - height) / 2, width, height);
@@ -158,7 +195,9 @@
     else cart.push({ ...selectedProduct, color: selectedColor, qty });
     saveCart();
     closeModal(productModal);
-    openCart();
+    floatButton.classList.remove('just-added');
+    void floatButton.offsetWidth;
+    floatButton.classList.add('just-added');
   });
 
   floatButton.addEventListener('click', openCart);
