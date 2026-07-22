@@ -1,7 +1,6 @@
 (() => {
   const COLORS = ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 'Morado', 'Verde salvia', 'Negro'];
   const phone = '34688124938';
-  const email = 'trendybag@hotmail.com';
   const productModal = document.querySelector('#product-modal');
   const cartModal = document.querySelector('#cart-modal');
   const floatButton = document.querySelector('#order-float');
@@ -141,11 +140,8 @@
 
     const text = orderText();
     const whatsappLink = cartModal.querySelector('.send-order');
-    const emailLink = cartModal.querySelector('.send-email');
     whatsappLink.href = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-    emailLink.href = `mailto:${email}?subject=${encodeURIComponent('Pedido profesional Trendy Bag')}&body=${encodeURIComponent(text)}`;
     whatsappLink.hidden = !cart.length;
-    emailLink.hidden = !cart.length;
     cartModal.hidden = false;
     document.body.style.overflow = 'hidden';
   };
