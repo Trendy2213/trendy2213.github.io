@@ -1,5 +1,13 @@
 (() => {
-  const COLORS = ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 'Morado', 'Verde salvia', 'Negro'];
+  const lang = ['es', 'ca', 'fr', 'en'].includes(document.documentElement.lang) ? document.documentElement.lang : 'es';
+  const I18N = {
+    es: { colors: ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 'Morado', 'Verde salvia', 'Negro'], productGate: 'Solo los clientes registrados pueden consultar colores y añadir productos al pedido.', cartGate: 'Inicia sesión como cliente registrado para acceder al carrito.', addGate: 'Inicia sesión como cliente registrado para añadir productos.', choose: 'Selecciona un color.', empty: 'El pedido está vacío.', units: 'unidades', orderStart: 'Hola Trendy Bag, quiero solicitar este pedido profesional:', orderEnd: 'Quedo pendiente de confirmación de disponibilidad y condiciones.', added: 'añadido al pedido', pending: 'El acceso privado se activará cuando validemos tu cuenta profesional.' },
+    ca: { colors: ['Beix', 'Taupe', 'Blau marí', 'Groc', 'Marró', 'Vermell', 'Morat', 'Verd sàlvia', 'Negre'], productGate: 'Només els clients registrats poden consultar colors i afegir productes a la comanda.', cartGate: 'Inicia sessió com a client registrat per accedir al carretó.', addGate: 'Inicia sessió com a client registrat per afegir productes.', choose: 'Selecciona un color.', empty: 'La comanda està buida.', units: 'unitats', orderStart: 'Hola Trendy Bag, vull sol·licitar aquesta comanda professional:', orderEnd: 'Quedo pendent de la confirmació de disponibilitat i condicions.', added: 'afegit a la comanda', pending: 'L’accés privat s’activarà quan validem el teu compte professional.' },
+    fr: { colors: ['Beige', 'Taupe', 'Bleu marine', 'Jaune', 'Marron', 'Rouge', 'Violet', 'Vert sauge', 'Noir'], productGate: 'Seuls les clients enregistrés peuvent consulter les couleurs et ajouter des produits à la commande.', cartGate: 'Connectez-vous en tant que client enregistré pour accéder au panier.', addGate: 'Connectez-vous en tant que client enregistré pour ajouter des produits.', choose: 'Sélectionnez une couleur.', empty: 'La commande est vide.', units: 'unités', orderStart: 'Bonjour Trendy Bag, je souhaite passer cette commande professionnelle :', orderEnd: 'Dans l’attente de la confirmation des disponibilités et des conditions.', added: 'ajouté à la commande', pending: 'L’accès privé sera activé après validation de votre compte professionnel.' },
+    en: { colors: ['Beige', 'Taupe', 'Navy blue', 'Yellow', 'Brown', 'Red', 'Purple', 'Sage green', 'Black'], productGate: 'Only registered customers can view colours and add products to an order.', cartGate: 'Sign in as a registered customer to access the cart.', addGate: 'Sign in as a registered customer to add products.', choose: 'Select a colour.', empty: 'Your order is empty.', units: 'units', orderStart: 'Hello Trendy Bag, I would like to place this trade order:', orderEnd: 'Please confirm availability and trade terms.', added: 'added to order', pending: 'Private access will be activated once we validate your trade account.' }
+  };
+  const copy = I18N[lang];
+  const COLORS = copy.colors;
   const VARIANT_CROPS = {
     MC955: [[72,480,175,160],[252,480,175,160],[430,480,175,160],[608,480,175,160],[5,700,160,170],[172,700,160,170],[340,700,160,170],[508,700,160,170],[676,700,160,170]],
     MC959: [[80,490,168,145],[258,490,164,145],[435,490,166,145],[610,490,165,145],[8,680,158,122],[174,680,158,122],[342,680,158,122],[512,680,163,122],[684,680,159,122]],
@@ -213,7 +221,7 @@
 
   const openProduct = card => {
     if (!isRegisteredClient()) {
-      openLogin('Solo los clientes registrados pueden consultar colores y añadir productos al pedido.');
+      openLogin(copy.productGate);
       return;
     }
     selectedProduct = { ref: card.dataset.reference, name: card.dataset.name };
@@ -262,19 +270,19 @@
   };
 
   const orderText = () => {
-    const lines = cart.map(item => `${item.ref} - ${item.name} - ${item.color}: ${item.qty} unidades`).join('\n');
-    return `Hola Trendy Bag, quiero solicitar este pedido profesional:\n${lines}\n\nQuedo pendiente de confirmación de disponibilidad y condiciones.`;
+    const lines = cart.map(item => `${item.ref} - ${item.name} - ${item.color}: ${item.qty} ${copy.units}`).join('\n');
+    return `${copy.orderStart}\n${lines}\n\n${copy.orderEnd}`;
   };
 
   const openCart = () => {
     if (!isRegisteredClient()) {
-      openLogin('Inicia sesión como cliente registrado para acceder al carrito.');
+      openLogin(copy.cartGate);
       return;
     }
     const lines = cartModal.querySelector('.cart-lines');
     lines.innerHTML = cart.length
       ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades</div></div>`).join('')
-      : '<p class="empty">El pedido está vacío.</p>';
+      : `<p class="empty">${copy.empty}</p>`;
 
     lines.querySelectorAll('button').forEach(button => {
       button.addEventListener('click', () => {
@@ -295,11 +303,11 @@
   productModal.querySelector('.add-selected').addEventListener('click', () => {
     if (!isRegisteredClient()) {
       closeModal(productModal);
-      openLogin('Inicia sesión como cliente registrado para añadir productos.');
+      openLogin(copy.addGate);
       return;
     }
     if (!selectedColor) {
-      productModal.querySelector('.error').textContent = 'Selecciona un color.';
+      productModal.querySelector('.error').textContent = copy.choose;
       return;
     }
 
@@ -315,7 +323,7 @@
     productModal.querySelector('.quantity input').value = 1;
     const addButton = productModal.querySelector('.add-selected');
     const originalLabel = addButton.textContent;
-    addButton.textContent = `${selectedColor} añadido al pedido ✓`;
+    addButton.textContent = `${selectedColor} ${copy.added} ✓`;
     addButton.classList.add('added');
     window.setTimeout(() => {
       addButton.textContent = originalLabel;
@@ -333,7 +341,7 @@
   });
   loginModal.querySelector('.login-form').addEventListener('submit', event => {
     event.preventDefault();
-    loginModal.querySelector('.login-feedback').textContent = 'El acceso privado se activará cuando validemos tu cuenta profesional.';
+    loginModal.querySelector('.login-feedback').textContent = copy.pending;
   });
   cartModal.querySelector('.clear-order').addEventListener('click', () => {
     cart = [];
