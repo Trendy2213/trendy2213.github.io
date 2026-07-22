@@ -35,8 +35,8 @@
     MC959: [0.135, 0.135, 0.415, 0.350],
     MC956: [0.095, 0.185, 0.445, 0.335],
     MC954: [0.135, 0.225, 0.405, 0.290],
-    MC953: [0.120, 0.225, 0.420, 0.287],
-    MC951: [0.120, 0.225, 0.420, 0.287],
+    MC953: [0.120, 0.225, 0.420, 0.300],
+    MC951: [0.120, 0.225, 0.420, 0.300],
     MC950: [0.120, 0.220, 0.420, 0.275]
   };
 
@@ -132,6 +132,13 @@
         continue;
       }
       const lightness = (max + min) / 510;
+      const pixelY = Math.floor(pixelIndex / width);
+      if (pixelY > colorCanvas.height * 0.64 && lightness > 0.70) {
+        pixels[i] = 255;
+        pixels[i + 1] = 255;
+        pixels[i + 2] = 255;
+        continue;
+      }
       if (lightness < 0.18) continue; // cremalleras y herrajes oscuros
       const adjustedLightness = Math.min(0.88, Math.max(0.06, baseLightness + lightness * lightnessGain));
       const [nr, ng, nb] = hslToRgb(hue, saturation, adjustedLightness);
