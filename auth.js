@@ -31,21 +31,35 @@ const friendlyError = error => {
 };
 
 let auth;
+let currentUser = null;
+let resolveAuthReady;
+const authReady = new Promise(resolve => { resolveAuthReady = resolve; });
 try {
   if (!firebaseConfig.apiKey) throw new Error('pending-config');
   auth = getAuth(initializeApp(firebaseConfig));
   onAuthStateChanged(auth, user => {
+    currentUser = user;
+    resolveAuthReady?.(user);
+    resolveAuthReady = null;
     window.dispatchEvent(new CustomEvent('trendy-auth-state', {
       detail: { authenticated: Boolean(user), email: user?.email || '' }
     }));
   });
 } catch {
+  resolveAuthReady?.(null);
+  resolveAuthReady = null;
   window.setTimeout(() => window.dispatchEvent(new CustomEvent('trendy-auth-state', {
     detail: { authenticated: false }
   })), 0);
 }
 
 window.TrendyAuth = {
+  isAuthenticated() {
+    return Boolean(auth?.currentUser || currentUser);
+  },
+  whenReady() {
+    return authReady;
+  },
   async signIn(email, password, remember = true) {
     if (!auth) throw new Error('Estamos terminando de activar el acceso seguro.');
     try {
