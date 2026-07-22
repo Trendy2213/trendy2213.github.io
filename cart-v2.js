@@ -167,7 +167,13 @@
       const scale = Math.min(820 / sw, 590 / sh);
       const width = sw * scale;
       const height = sh * scale;
-      canvasContext.drawImage(source, sx, sy, sw, sh, (1000 - width) / 2, (760 - height) / 2, width, height);
+      const drawX = (1000 - width) / 2;
+      const drawY = (760 - height) / 2;
+      canvasContext.drawImage(source, sx, sy, sw, sh, drawX, drawY, width, height);
+      if (['MC954', 'MC953', 'MC951', 'MC950'].includes(card.dataset.reference)) {
+        canvasContext.fillStyle = '#fff';
+        canvasContext.fillRect(drawX - 2, drawY + height * 0.80, width * 0.12, height * 0.22);
+      }
       recolorProduct(COLORS[colorIndex]);
       selectedPreview = createPreview();
       sheetImage.hidden = true;
