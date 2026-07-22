@@ -31,13 +31,13 @@
   // Se usa la fotografía grande de cada ficha. Es mucho más nítida que las
   // miniaturas de colores y está recortada antes de textos y cotas.
   const MASTER_CROPS = {
-    MC955: [0.155, 0.130, 0.390, 0.340],
+    MC955: [0.155, 0.130, 0.390, 0.325],
     MC959: [0.135, 0.135, 0.415, 0.350],
     MC956: [0.095, 0.185, 0.445, 0.335],
-    MC954: [0.120, 0.225, 0.420, 0.305],
+    MC954: [0.135, 0.225, 0.405, 0.290],
     MC953: [0.120, 0.225, 0.420, 0.300],
     MC951: [0.120, 0.225, 0.420, 0.300],
-    MC950: [0.120, 0.220, 0.420, 0.305]
+    MC950: [0.120, 0.220, 0.420, 0.292]
   };
 
   const COLOR_TONES = {
