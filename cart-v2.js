@@ -31,11 +31,11 @@
   // únicamente el producto: quedan fuera referencia, medidas, nombres y unidades.
   const CROP_MAP = {
     MC955: [
-      [0.030, 0.505, 0.205, 0.205], [0.270, 0.505, 0.195, 0.205],
-      [0.515, 0.505, 0.195, 0.205], [0.755, 0.505, 0.215, 0.205],
-      [0.005, 0.745, 0.185, 0.205], [0.200, 0.745, 0.185, 0.205],
-      [0.395, 0.745, 0.190, 0.205], [0.595, 0.745, 0.190, 0.205],
-      [0.795, 0.745, 0.200, 0.205]
+      [0.080, 0.495, 0.180, 0.225], [0.305, 0.495, 0.180, 0.225],
+      [0.525, 0.495, 0.180, 0.225], [0.750, 0.495, 0.185, 0.225],
+      [0.015, 0.740, 0.175, 0.205], [0.210, 0.740, 0.175, 0.205],
+      [0.410, 0.740, 0.180, 0.205], [0.610, 0.740, 0.180, 0.205],
+      [0.810, 0.740, 0.185, 0.205]
     ],
     MC959: [
       [0.065, 0.560, 0.185, 0.190], [0.275, 0.560, 0.185, 0.190],
@@ -124,6 +124,7 @@
     productModal.querySelector('h2').textContent = selectedProduct.name;
     productModal.querySelector('.quantity input').value = 1;
     productModal.querySelector('.error').textContent = '';
+    productModal.querySelector('.modal-card').scrollTop = 0;
 
     const colorList = productModal.querySelector('.color-list');
     colorList.innerHTML = '';
