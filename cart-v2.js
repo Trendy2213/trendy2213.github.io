@@ -1,5 +1,14 @@
 (() => {
   const COLORS = ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 'Morado', 'Verde salvia', 'Negro'];
+  const VARIANT_CROPS = {
+    MC955: [[72,480,175,160],[252,480,175,160],[430,480,175,160],[608,480,175,160],[5,700,160,170],[172,700,160,170],[340,700,160,170],[508,700,160,170],[676,700,160,170]],
+    MC959: [[80,490,168,145],[258,490,164,145],[435,490,166,145],[610,490,165,145],[8,680,158,122],[174,680,158,122],[342,680,158,122],[512,680,163,122],[684,680,159,122]],
+    MC956: [[190,810,290,170],[495,810,290,170],[815,810,300,170],[1120,810,320,170],[20,1035,300,155],[335,1035,295,155],[650,1035,300,155],[960,1035,300,155],[1260,1035,305,155]],
+    MC954: [[94,436,155,80],[258,436,153,80],[420,436,153,80],[584,436,154,80],[5,548,160,86],[171,548,155,86],[338,548,160,86],[505,548,166,86],[680,548,160,86]],
+    MC953: [[80,428,170,78],[258,428,163,78],[430,428,168,78],[610,428,172,78],[5,545,162,92],[173,545,158,92],[340,545,160,92],[510,545,165,92],[684,545,158,92]],
+    MC951: [[80,435,170,82],[258,435,163,82],[430,435,168,82],[610,435,172,82],[5,558,162,78],[173,558,158,78],[340,558,160,78],[510,558,165,78],[684,558,158,78]],
+    MC950: [[80,425,170,100],[258,425,163,100],[430,425,168,100],[610,425,172,100],[5,565,162,100],[173,565,158,100],[340,565,160,100],[510,565,165,100],[684,565,158,100]]
+  };
   const phone = '34688124938';
   const productModal = document.querySelector('#product-modal');
   const cartModal = document.querySelector('#cart-modal');
@@ -15,6 +24,14 @@
   let selectedProduct = null;
   let selectedColor = '';
   let selectedPreview = '';
+  const isRegisteredClient = () => localStorage.getItem('trendy-client-approved') === 'true';
+
+  const openLogin = message => {
+    loginModal.querySelector('.login-feedback').textContent = message || '';
+    loginModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    loginModal.querySelector('input').focus();
+  };
 
   const closeModal = modal => {
     modal.hidden = true;
@@ -166,11 +183,11 @@
   const showSelectedColor = (card, colorIndex) => {
     const source = card.querySelector('img');
     const draw = () => {
-      const crop = cropFor(card.dataset.reference);
-      const sx = Math.round(source.naturalWidth * crop.x);
-      const sy = Math.round(source.naturalHeight * crop.y);
-      const sw = Math.round(source.naturalWidth * crop.w);
-      const sh = Math.round(source.naturalHeight * crop.h);
+      const crop = VARIANT_CROPS[card.dataset.reference][colorIndex];
+      const sx = crop[0];
+      const sy = crop[1];
+      const sw = crop[2];
+      const sh = crop[3];
 
       colorCanvas.width = 1000;
       colorCanvas.height = 760;
@@ -185,7 +202,6 @@
       const drawX = (1000 - width) / 2;
       const drawY = (760 - height) / 2;
       canvasContext.drawImage(source, sx, sy, sw, sh, drawX, drawY, width, height);
-      recolorProduct(COLORS[colorIndex]);
       selectedPreview = createPreview();
       sheetImage.hidden = true;
       colorCanvas.hidden = false;
@@ -196,6 +212,10 @@
   };
 
   const openProduct = card => {
+    if (!isRegisteredClient()) {
+      openLogin('Solo los clientes registrados pueden consultar colores y añadir productos al pedido.');
+      return;
+    }
     selectedProduct = { ref: card.dataset.reference, name: card.dataset.name };
     selectedColor = '';
     selectedPreview = '';
@@ -210,7 +230,8 @@
 
     const colorList = productModal.querySelector('.color-list');
     colorList.innerHTML = '';
-    COLORS.forEach((color, index) => {
+    const colors = COLORS;
+    colors.forEach((color, index) => {
       const button = document.createElement('button');
       button.className = 'color-choice';
       button.type = 'button';
@@ -246,6 +267,10 @@
   };
 
   const openCart = () => {
+    if (!isRegisteredClient()) {
+      openLogin('Inicia sesión como cliente registrado para acceder al carrito.');
+      return;
+    }
     const lines = cartModal.querySelector('.cart-lines');
     lines.innerHTML = cart.length
       ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades</div></div>`).join('')
@@ -268,6 +293,11 @@
   };
 
   productModal.querySelector('.add-selected').addEventListener('click', () => {
+    if (!isRegisteredClient()) {
+      closeModal(productModal);
+      openLogin('Inicia sesión como cliente registrado para añadir productos.');
+      return;
+    }
     if (!selectedColor) {
       productModal.querySelector('.error').textContent = 'Selecciona un color.';
       return;
@@ -299,9 +329,7 @@
   floatButton.addEventListener('click', openCart);
   headerCartButton.addEventListener('click', openCart);
   document.querySelector('#header-login').addEventListener('click', () => {
-    loginModal.hidden = false;
-    document.body.style.overflow = 'hidden';
-    loginModal.querySelector('input').focus();
+    openLogin('');
   });
   loginModal.querySelector('.login-form').addEventListener('submit', event => {
     event.preventDefault();
