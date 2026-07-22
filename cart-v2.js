@@ -11,6 +11,7 @@
   let cart = JSON.parse(localStorage.getItem('trendy-bag-order') || '[]');
   let selectedProduct = null;
   let selectedColor = '';
+  let selectedPreview = '';
 
   const closeModal = modal => {
     modal.hidden = true;
@@ -27,69 +28,85 @@
     });
   });
 
-  // Recortes medidos sobre cada ficha del proveedor. Cada rectángulo contiene
-  // únicamente el producto: quedan fuera referencia, medidas, nombres y unidades.
-  const CROP_MAP = {
-    MC955: [
-      [0.080, 0.507, 0.180, 0.213], [0.305, 0.507, 0.180, 0.213],
-      [0.525, 0.507, 0.180, 0.213], [0.750, 0.507, 0.185, 0.213],
-      [0.015, 0.740, 0.175, 0.205], [0.210, 0.740, 0.175, 0.205],
-      [0.410, 0.740, 0.180, 0.205], [0.610, 0.740, 0.180, 0.205],
-      [0.810, 0.740, 0.185, 0.205]
-    ],
-    MC959: [
-      [0.065, 0.560, 0.185, 0.190], [0.275, 0.560, 0.185, 0.190],
-      [0.490, 0.560, 0.185, 0.190], [0.705, 0.560, 0.190, 0.190],
-      [0.005, 0.770, 0.185, 0.190], [0.200, 0.770, 0.185, 0.190],
-      [0.395, 0.770, 0.190, 0.190], [0.595, 0.770, 0.190, 0.190],
-      [0.795, 0.770, 0.200, 0.190]
-    ],
-    MC956: [
-      [0.070, 0.535, 0.185, 0.205], [0.275, 0.535, 0.185, 0.205],
-      [0.485, 0.535, 0.185, 0.205], [0.695, 0.535, 0.190, 0.205],
-      [0.005, 0.760, 0.185, 0.190], [0.200, 0.760, 0.185, 0.190],
-      [0.395, 0.760, 0.190, 0.190], [0.595, 0.760, 0.190, 0.190],
-      [0.795, 0.760, 0.200, 0.190]
-    ],
-    MC954: [
-      [0.070, 0.620, 0.180, 0.135], [0.280, 0.620, 0.180, 0.135],
-      [0.490, 0.620, 0.180, 0.135], [0.700, 0.620, 0.185, 0.135],
-      [0.005, 0.790, 0.185, 0.140], [0.200, 0.790, 0.185, 0.140],
-      [0.395, 0.790, 0.190, 0.140], [0.595, 0.790, 0.190, 0.140],
-      [0.795, 0.790, 0.200, 0.140]
-    ],
-    MC953: [
-      [0.070, 0.610, 0.180, 0.150], [0.280, 0.610, 0.180, 0.150],
-      [0.490, 0.610, 0.180, 0.150], [0.700, 0.610, 0.185, 0.150],
-      [0.005, 0.785, 0.185, 0.145], [0.200, 0.785, 0.185, 0.145],
-      [0.395, 0.785, 0.190, 0.145], [0.595, 0.785, 0.190, 0.145],
-      [0.795, 0.785, 0.200, 0.145]
-    ],
-    MC951: [
-      [0.070, 0.610, 0.180, 0.150], [0.280, 0.610, 0.180, 0.150],
-      [0.490, 0.610, 0.180, 0.150], [0.700, 0.610, 0.185, 0.150],
-      [0.005, 0.785, 0.185, 0.145], [0.200, 0.785, 0.185, 0.145],
-      [0.395, 0.785, 0.190, 0.145], [0.595, 0.785, 0.190, 0.145],
-      [0.795, 0.785, 0.200, 0.145]
-    ],
-    MC950: [
-      [0.070, 0.620, 0.180, 0.155], [0.280, 0.620, 0.180, 0.155],
-      [0.490, 0.620, 0.180, 0.155], [0.700, 0.620, 0.185, 0.155],
-      [0.005, 0.800, 0.185, 0.145], [0.200, 0.800, 0.185, 0.145],
-      [0.395, 0.800, 0.190, 0.145], [0.595, 0.800, 0.190, 0.145],
-      [0.795, 0.800, 0.200, 0.145]
-    ]
+  // Se usa la fotografía grande de cada ficha. Es mucho más nítida que las
+  // miniaturas de colores y está recortada antes de textos y cotas.
+  const MASTER_CROPS = {
+    MC955: [0.155, 0.130, 0.390, 0.340],
+    MC959: [0.135, 0.135, 0.415, 0.350],
+    MC956: [0.095, 0.185, 0.445, 0.335],
+    MC954: [0.120, 0.225, 0.420, 0.305],
+    MC953: [0.120, 0.225, 0.420, 0.300],
+    MC951: [0.120, 0.225, 0.420, 0.300],
+    MC950: [0.120, 0.220, 0.420, 0.305]
   };
 
-  const cropFor = (reference, colorIndex) => {
-    const crop = CROP_MAP[reference]?.[colorIndex] || CROP_MAP.MC959[colorIndex];
+  const COLOR_TONES = {
+    Beige: [42, 0.30], Taupe: [28, 0.23], 'Azul marino': [228, 0.52],
+    Amarillo: [48, 0.76], Marrón: [18, 0.55], Rojo: [3, 0.76],
+    Morado: [248, 0.40], 'Verde salvia': [105, 0.22], Negro: [220, 0.06]
+  };
+
+  const cropFor = reference => {
+    const crop = MASTER_CROPS[reference] || MASTER_CROPS.MC959;
     return { x: crop[0], y: crop[1], w: crop[2], h: crop[3] };
+  };
+
+  const hueToRgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+
+  const hslToRgb = (h, s, l) => {
+    h /= 360;
+    if (!s) return [l * 255, l * 255, l * 255];
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    return [hueToRgb(p, q, h + 1 / 3), hueToRgb(p, q, h), hueToRgb(p, q, h - 1 / 3)].map(value => value * 255);
+  };
+
+  const recolorProduct = color => {
+    const [hue, saturation] = COLOR_TONES[color];
+    const image = canvasContext.getImageData(0, 0, colorCanvas.width, colorCanvas.height);
+    const pixels = image.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (min > 242) continue;
+      const lightness = (max + min) / 510;
+      if (lightness < 0.18) continue; // cremalleras y herrajes oscuros
+      const adjustedLightness = color === 'Negro'
+        ? Math.min(0.25, Math.max(0.07, lightness * 0.32))
+        : Math.min(0.88, Math.max(0.10, lightness * 0.92));
+      const [nr, ng, nb] = hslToRgb(hue, saturation, adjustedLightness);
+      pixels[i] = nr;
+      pixels[i + 1] = ng;
+      pixels[i + 2] = nb;
+    }
+    canvasContext.putImageData(image, 0, 0);
+  };
+
+  const createPreview = () => {
+    const preview = document.createElement('canvas');
+    preview.width = 320;
+    preview.height = 240;
+    const context = preview.getContext('2d');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, preview.width, preview.height);
+    context.drawImage(colorCanvas, 0, 0, preview.width, preview.height);
+    return preview.toDataURL('image/webp', 0.82);
   };
 
   const showSelectedColor = (card, colorIndex) => {
     const source = card.querySelector('img');
     const draw = () => {
-      const crop = cropFor(card.dataset.reference, colorIndex);
+      const crop = cropFor(card.dataset.reference);
       const sx = Math.round(source.naturalWidth * crop.x);
       const sy = Math.round(source.naturalHeight * crop.y);
       const sw = Math.round(source.naturalWidth * crop.w);
@@ -102,10 +119,12 @@
       canvasContext.imageSmoothingEnabled = true;
       canvasContext.imageSmoothingQuality = 'high';
 
-      const scale = Math.min(860 / sw, 620 / sh);
+      const scale = Math.min(820 / sw, 590 / sh);
       const width = sw * scale;
       const height = sh * scale;
       canvasContext.drawImage(source, sx, sy, sw, sh, (1000 - width) / 2, (760 - height) / 2, width, height);
+      recolorProduct(COLORS[colorIndex]);
+      selectedPreview = createPreview();
       sheetImage.hidden = true;
       colorCanvas.hidden = false;
     };
@@ -117,6 +136,7 @@
   const openProduct = card => {
     selectedProduct = { ref: card.dataset.reference, name: card.dataset.name };
     selectedColor = '';
+    selectedPreview = '';
     sheetImage.src = card.querySelector('img').src;
     sheetImage.hidden = false;
     colorCanvas.hidden = true;
@@ -165,7 +185,7 @@
   const openCart = () => {
     const lines = cartModal.querySelector('.cart-lines');
     lines.innerHTML = cart.length
-      ? cart.map((item, index) => `<div class="cart-line"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br>${item.color} · ${item.qty} unidades</div>`).join('')
+      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades</div></div>`).join('')
       : '<p class="empty">El pedido está vacío.</p>';
 
     lines.querySelectorAll('button').forEach(button => {
@@ -192,8 +212,12 @@
 
     const qty = Math.max(1, Number(productModal.querySelector('.quantity input').value) || 1);
     const existing = cart.find(item => item.ref === selectedProduct.ref && item.color === selectedColor);
-    if (existing) existing.qty += qty;
-    else cart.push({ ...selectedProduct, color: selectedColor, qty });
+    if (existing) {
+      existing.qty += qty;
+      existing.preview = selectedPreview || existing.preview;
+    } else {
+      cart.push({ ...selectedProduct, color: selectedColor, qty, preview: selectedPreview });
+    }
     saveCart();
     closeModal(productModal);
     floatButton.classList.remove('just-added');
