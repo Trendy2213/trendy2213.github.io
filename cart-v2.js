@@ -7,6 +7,15 @@
     en: { colors: ['Beige', 'Taupe', 'Navy blue', 'Yellow', 'Brown', 'Red', 'Purple', 'Sage green', 'Black'], productGate: 'Only registered customers can view colours and add products to an order.', cartGate: 'Sign in as a registered customer to access the cart.', addGate: 'Sign in as a registered customer to add products.', choose: 'Select a colour.', empty: 'Your order is empty.', units: 'units', orderStart: 'Hello Trendy Bag, I would like to place this trade order:', orderEnd: 'Please confirm availability and trade terms.', added: 'added to order', pending: 'Private access will be activated once we validate your trade account.', emailReady: 'Your email app will open with the request ready. You will only need to press Send.' }
   };
   const copy = I18N[lang];
+  const documentCopy = {
+    es: ['Modelo 036 *', 'Selecciona el Modelo 036. Al abrirse el correo deberás adjuntar este mismo archivo antes de enviarlo.'],
+    ca: ['Model 036 *', 'Selecciona el Model 036. Quan s’obri el correu hauràs d’adjuntar aquest mateix arxiu abans d’enviar-lo.'],
+    fr: ['Formulaire 036 *', 'Sélectionnez le formulaire 036. Lorsque votre messagerie s’ouvrira, joignez ce même fichier avant l’envoi.'],
+    en: ['Form 036 *', 'Select Form 036. When your email app opens, attach this same file before sending.']
+  }[lang];
+  const enhancementStyles = document.createElement('style');
+  enhancementStyles.textContent = '.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}';
+  document.head.append(enhancementStyles);
   const COLORS = copy.colors;
   const VARIANT_CROPS = {
     MC955: [[72,480,175,160],[252,480,175,160],[430,480,175,160],[608,480,175,160],[5,700,160,170],[172,700,160,170],[340,700,160,170],[508,700,160,170],[676,700,160,170]],
@@ -19,11 +28,24 @@
   };
   const phone = '34688124938';
   const productModal = document.querySelector('#product-modal');
+  if (!productModal.querySelector('.selected-color-label')) {
+    const selectedColorLabel = document.createElement('p');
+    selectedColorLabel.className = 'selected-color-label';
+    productModal.querySelector('.color-list').after(selectedColorLabel);
+  }
   const cartModal = document.querySelector('#cart-modal');
   const floatButton = document.querySelector('#order-float');
   const headerCartButton = document.querySelector('#header-cart');
   const headerCartCount = document.querySelector('.header-cart-count');
   const loginModal = document.querySelector('#login-modal');
+  const requestGrid = loginModal.querySelector('.request-grid');
+  if (requestGrid && !requestGrid.querySelector('[name="model036"]')) {
+    const messageField = requestGrid.querySelector('textarea[name="message"]')?.closest('label');
+    const documentField = document.createElement('label');
+    documentField.className = 'document-field';
+    documentField.innerHTML = `${documentCopy[0]}<input name="model036" type="file" accept=".pdf,.jpg,.jpeg,.png" required><span class="document-note">${documentCopy[1]}</span>`;
+    requestGrid.insertBefore(documentField, messageField || null);
+  }
   const sheetImage = productModal.querySelector('.modal-image img');
   const colorCanvas = productModal.querySelector('.selected-color-canvas');
   const canvasContext = colorCanvas.getContext('2d');
@@ -189,34 +211,15 @@
   };
 
   const showSelectedColor = (card, colorIndex) => {
+    // No se inventan colores ni se amplían miniaturas. Hasta disponer de una
+    // foto individual real, se conserva la ficha original sin alteraciones.
     const source = card.querySelector('img');
-    const draw = () => {
-      const crop = VARIANT_CROPS[card.dataset.reference][colorIndex];
-      const sx = crop[0];
-      const sy = crop[1];
-      const sw = crop[2];
-      const sh = crop[3];
-
-      colorCanvas.width = 1000;
-      colorCanvas.height = 760;
-      canvasContext.fillStyle = '#fff';
-      canvasContext.fillRect(0, 0, colorCanvas.width, colorCanvas.height);
-      canvasContext.imageSmoothingEnabled = true;
-      canvasContext.imageSmoothingQuality = 'high';
-
-      const scale = Math.min(820 / sw, 590 / sh);
-      const width = sw * scale;
-      const height = sh * scale;
-      const drawX = (1000 - width) / 2;
-      const drawY = (760 - height) / 2;
-      canvasContext.drawImage(source, sx, sy, sw, sh, drawX, drawY, width, height);
-      selectedPreview = createPreview();
-      sheetImage.hidden = true;
-      colorCanvas.hidden = false;
-    };
-
-    if (source.complete && source.naturalWidth) draw();
-    else source.addEventListener('load', draw, { once: true });
+    selectedPreview = source.src;
+    sheetImage.src = source.src;
+    sheetImage.hidden = false;
+    colorCanvas.hidden = true;
+    const label = productModal.querySelector('.selected-color-label');
+    if (label) label.textContent = `${copy.choose.replace('.', '')}: ${COLORS[colorIndex]}`;
   };
 
   const openProduct = card => {
@@ -226,6 +229,8 @@
     sheetImage.src = card.querySelector('img').src;
     sheetImage.hidden = false;
     colorCanvas.hidden = true;
+    const selectedLabel = productModal.querySelector('.selected-color-label');
+    if (selectedLabel) selectedLabel.textContent = '';
     productModal.querySelector('.reference').textContent = selectedProduct.ref;
     productModal.querySelector('h2').textContent = selectedProduct.name;
     productModal.querySelector('.quantity input').value = 1;
@@ -354,8 +359,11 @@
       `Ciudad y país: ${data.get('location')}`,
       `Tipo de negocio: ${data.get('business')}`,
       `Web o Instagram: ${data.get('website') || '-'}`,
+      `Modelo 036 seleccionado para adjuntar: ${data.get('model036')?.name || 'NO SELECCIONADO'}`,
       '',
-      `Mensaje: ${data.get('message') || '-'}`
+      `Mensaje: ${data.get('message') || '-'}`,
+      '',
+      'IMPORTANTE: adjuntar el archivo Modelo 036 a este correo antes de enviarlo.'
     ].join('\n');
     form.querySelector('.request-feedback').textContent = copy.emailReady;
     window.location.href = `mailto:trendybag@hotmail.com?subject=${encodeURIComponent('Solicitud de usuario profesional - ' + data.get('company'))}&body=${encodeURIComponent(body)}`;
