@@ -4,6 +4,9 @@
   const productModal = document.querySelector('#product-modal');
   const cartModal = document.querySelector('#cart-modal');
   const floatButton = document.querySelector('#order-float');
+  const headerCartButton = document.querySelector('#header-cart');
+  const headerCartCount = document.querySelector('.header-cart-count');
+  const loginModal = document.querySelector('#login-modal');
   const sheetImage = productModal.querySelector('.modal-image img');
   const colorCanvas = productModal.querySelector('.selected-color-canvas');
   const canvasContext = colorCanvas.getContext('2d');
@@ -234,6 +237,7 @@
     localStorage.setItem('trendy-bag-order', JSON.stringify(cart));
     floatButton.hidden = !cart.length;
     floatButton.querySelector('span').textContent = cart.reduce((total, item) => total + item.qty, 0);
+    headerCartCount.textContent = cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
   };
 
   const orderText = () => {
@@ -293,6 +297,16 @@
   });
 
   floatButton.addEventListener('click', openCart);
+  headerCartButton.addEventListener('click', openCart);
+  document.querySelector('#header-login').addEventListener('click', () => {
+    loginModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    loginModal.querySelector('input').focus();
+  });
+  loginModal.querySelector('.login-form').addEventListener('submit', event => {
+    event.preventDefault();
+    loginModal.querySelector('.login-feedback').textContent = 'El acceso privado se activará cuando validemos tu cuenta profesional.';
+  });
   cartModal.querySelector('.clear-order').addEventListener('click', () => {
     cart = [];
     saveCart();
