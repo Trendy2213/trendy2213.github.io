@@ -61,12 +61,41 @@
   let selectedColor = '';
   let selectedPreview = '';
   let authenticatedClient = false;
-  const isRegisteredClient = () => authenticatedClient;
+  const isRegisteredClient = () => authenticatedClient === true && Boolean(window.TrendyAuth?.isAuthenticated?.());
+
+  const updatePrivateControls = () => {
+    const allowed = isRegisteredClient();
+    productModal.querySelector('.color-list').hidden = !allowed;
+    productModal.querySelector('.quantity').hidden = !allowed;
+    productModal.querySelector('.add-selected').hidden = !allowed;
+    let gate = productModal.querySelector('.product-login-gate');
+    if (!gate) {
+      gate = document.createElement('button');
+      gate.type = 'button';
+      gate.className = 'product-login-gate';
+      gate.style.cssText = 'width:100%;padding:16px;border:0;background:#111;color:#fff;font-weight:800;cursor:pointer';
+      gate.addEventListener('click', () => {
+        closeModal(productModal);
+        openLogin(copy.addGate);
+      });
+      productModal.querySelector('.add-selected').before(gate);
+    }
+    gate.textContent = copy.addGate;
+    gate.hidden = allowed;
+    floatButton.hidden = !allowed || !cart.length;
+    headerCartCount.textContent = allowed && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
+  };
 
   window.addEventListener('trendy-auth-state', event => {
     authenticatedClient = Boolean(event.detail?.authenticated);
     const logoutButton = loginModal.querySelector('.logout-button');
     if (logoutButton) logoutButton.hidden = !authenticatedClient;
+    updatePrivateControls();
+  });
+
+  window.TrendyAuth?.whenReady?.().then(user => {
+    authenticatedClient = Boolean(user);
+    updatePrivateControls();
   });
 
   const openLogin = message => {
@@ -269,6 +298,7 @@
     });
 
     productModal.hidden = false;
+    updatePrivateControls();
     document.body.style.overflow = 'hidden';
   };
 
@@ -278,9 +308,9 @@
 
   const saveCart = () => {
     localStorage.setItem('trendy-bag-order', JSON.stringify(cart));
-    floatButton.hidden = !cart.length;
+    floatButton.hidden = !isRegisteredClient() || !cart.length;
     floatButton.querySelector('span').textContent = cart.reduce((total, item) => total + item.qty, 0);
-    headerCartCount.textContent = cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
+    headerCartCount.textContent = isRegisteredClient() && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
   };
 
   const orderText = () => {
