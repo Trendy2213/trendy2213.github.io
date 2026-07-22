@@ -384,7 +384,7 @@
     }
     try {
       await window.TrendyAuth.resetPassword(email);
-      feedback.textContent = 'Te hemos enviado un correo para crear una nueva contraseña.';
+      feedback.textContent = 'Si existe una cuenta con ese correo, recibirás un enlace para crear una nueva contraseña. Revisa también el correo no deseado.';
     } catch (error) {
       feedback.textContent = error.message;
     }
