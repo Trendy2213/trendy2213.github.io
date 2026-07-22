@@ -41,9 +41,11 @@
   };
 
   const COLOR_TONES = {
-    Beige: [42, 0.30], Taupe: [28, 0.23], 'Azul marino': [228, 0.52],
-    Amarillo: [48, 0.76], Marrón: [18, 0.55], Rojo: [3, 0.76],
-    Morado: [248, 0.40], 'Verde salvia': [105, 0.22], Negro: [220, 0.06]
+    Beige: [42, 0.14, 0.34, 0.42], Taupe: [28, 0.15, 0.28, 0.42],
+    'Azul marino': [228, 0.52, 0.08, 0.45], Amarillo: [48, 0.76, 0.30, 0.50],
+    Marrón: [18, 0.55, 0.10, 0.42], Rojo: [3, 0.76, 0.14, 0.48],
+    Morado: [248, 0.40, 0.12, 0.48], 'Verde salvia': [105, 0.22, 0.25, 0.40],
+    Negro: [220, 0.06, 0.05, 0.25]
   };
 
   const cropFor = reference => {
@@ -69,21 +71,64 @@
   };
 
   const recolorProduct = color => {
-    const [hue, saturation] = COLOR_TONES[color];
+    const [hue, saturation, baseLightness, lightnessGain] = COLOR_TONES[color];
     const image = canvasContext.getImageData(0, 0, colorCanvas.width, colorCanvas.height);
     const pixels = image.data;
+    const width = colorCanvas.width;
+    const pixelCount = width * colorCanvas.height;
+    const labels = new Int32Array(pixelCount);
+    const queue = new Int32Array(pixelCount);
+    let component = 0;
+    let largestComponent = 0;
+    let largestSize = 0;
+
+    // Conserva el objeto principal y elimina líneas, letras y cifras que hayan
+    // quedado aisladas alrededor de la fotografía del producto.
+    for (let start = 0; start < pixelCount; start += 1) {
+      const offset = start * 4;
+      if (labels[start] || Math.min(pixels[offset], pixels[offset + 1], pixels[offset + 2]) > 242) continue;
+      component += 1;
+      let head = 0;
+      let tail = 0;
+      let size = 0;
+      queue[tail++] = start;
+      labels[start] = component;
+      while (head < tail) {
+        const index = queue[head++];
+        size += 1;
+        const x = index % width;
+        const neighbours = [index - width, index + width, x ? index - 1 : -1, x < width - 1 ? index + 1 : -1];
+        for (const next of neighbours) {
+          if (next < 0 || next >= pixelCount || labels[next]) continue;
+          const nextOffset = next * 4;
+          if (Math.min(pixels[nextOffset], pixels[nextOffset + 1], pixels[nextOffset + 2]) > 242) continue;
+          labels[next] = component;
+          queue[tail++] = next;
+        }
+      }
+      if (size > largestSize) {
+        largestSize = size;
+        largestComponent = component;
+      }
+    }
+
     for (let i = 0; i < pixels.length; i += 4) {
+      const pixelIndex = i / 4;
       const r = pixels[i];
       const g = pixels[i + 1];
       const b = pixels[i + 2];
       const max = Math.max(r, g, b);
       const min = Math.min(r, g, b);
+      if (labels[pixelIndex] && labels[pixelIndex] !== largestComponent) {
+        pixels[i] = 255;
+        pixels[i + 1] = 255;
+        pixels[i + 2] = 255;
+        continue;
+      }
       if (min > 242) continue;
       const lightness = (max + min) / 510;
       if (lightness < 0.18) continue; // cremalleras y herrajes oscuros
-      const adjustedLightness = color === 'Negro'
-        ? Math.min(0.25, Math.max(0.07, lightness * 0.32))
-        : Math.min(0.88, Math.max(0.10, lightness * 0.92));
+      const adjustedLightness = Math.min(0.88, Math.max(0.06, baseLightness + lightness * lightnessGain));
       const [nr, ng, nb] = hslToRgb(hue, saturation, adjustedLightness);
       pixels[i] = nr;
       pixels[i + 1] = ng;
