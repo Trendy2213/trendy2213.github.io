@@ -93,6 +93,7 @@ const injectAdminInterface = () => {
       <nav class="admin-tabs" aria-label="Secciones de administración"><button class="active" type="button" data-admin-tab="catalog">Productos y web</button><button type="button" data-admin-tab="quotes">Pedidos y presupuestos</button></nav>
       <section class="admin-tab-panel" data-admin-panel="catalog">
         <p class="admin-help">Gestiona precios, disponibilidad, colores y las secciones de la web. Los precios son profesionales sin IVA.</p>
+        <label class="admin-search-label">Buscar referencia<input class="admin-search" type="search" placeholder="Ej. MC955" autocomplete="off"></label>
         <form class="catalog-admin-form"></form>
         <p class="catalog-admin-feedback" role="status"></p>
         <button class="button dark save-catalog" type="button">Guardar cambios</button>
@@ -112,15 +113,28 @@ const injectAdminInterface = () => {
     .admin-tabs{display:flex;gap:8px;margin:22px 0;border-bottom:1px solid #ddd5cb}.admin-tabs button{border:0;background:none;padding:12px 15px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent}.admin-tabs button.active{border-color:#171717}
     .admin-tab-panel[hidden]{display:none!important}.admin-budget-frame{width:100%;height:70vh;border:1px solid #ddd5cb;background:#f4f1eb}
     .catalog-admin-form{display:grid;gap:14px;margin:25px 0}.admin-product{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}
+    .admin-search-label{display:grid;gap:7px;margin-top:22px;font-size:13px;font-weight:800}.admin-search{width:100%;min-height:48px;border:1px solid #cfc9c1;padding:10px 13px;background:#fff}
     .admin-product-head{display:grid;grid-template-columns:auto 82px 1fr 190px;gap:16px;align-items:center}
-    .admin-product-photo{width:82px;height:82px;object-fit:contain;background:#fff;border:1px solid #e4dfd7;padding:5px}
+    .admin-product-photo{width:82px;height:82px;object-fit:contain;background:#fff;border:1px solid #e4dfd7;padding:5px;cursor:zoom-in}
     .admin-product-head label,.admin-colors label{display:flex;align-items:center;gap:8px;font-weight:700}
     .admin-product input[type="number"]{width:100%;min-height:44px;border:1px solid #cfc9c1;padding:8px 11px}
     .admin-colors,.admin-folders{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:15px;padding-top:15px;border-top:1px solid #e4dfd7}.admin-folders::before{content:'Secciones web';width:100%;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
     .catalog-admin-feedback{min-height:20px;font-weight:700}.save-catalog{width:100%}
+    .admin-image-viewer{position:fixed;inset:0;z-index:250;background:#000d;display:grid;place-items:center;padding:30px}.admin-image-viewer[hidden]{display:none}.admin-image-viewer img{display:block;max-width:92vw;max-height:90vh;object-fit:contain;background:#fff}.admin-image-viewer button{position:fixed;right:25px;top:20px;width:46px;height:46px;border:0;border-radius:50%;background:#fff;font-size:30px;cursor:pointer}
     @media(max-width:700px){.catalog-admin-card{padding:45px 20px 28px}.admin-product-head{grid-template-columns:1fr}.admin-colors,.admin-folders{display:grid;grid-template-columns:1fr 1fr}.admin-tabs{overflow:auto}.admin-tabs button{white-space:nowrap}}
   `;
   document.head.append(style);
+
+  const imageViewer = document.createElement('div');
+  imageViewer.className = 'admin-image-viewer';
+  imageViewer.hidden = true;
+  imageViewer.innerHTML = '<button type="button" aria-label="Cerrar imagen">×</button><img alt="Vista ampliada del producto">';
+  document.body.append(imageViewer);
+  const closeImageViewer = () => { imageViewer.hidden = true; };
+  imageViewer.querySelector('button').addEventListener('click', closeImageViewer);
+  imageViewer.addEventListener('click', event => {
+    if (event.target === imageViewer) closeImageViewer();
+  });
 
   const renderForm = () => {
     modal.querySelector('.catalog-admin-form').innerHTML = REFERENCES.map(reference => {
@@ -137,7 +151,27 @@ const injectAdminInterface = () => {
         <div class="admin-folders">${FOLDERS.map(folder => `<label><input type="checkbox" data-folder="${folder}" ${item.folders[folder] ? 'checked' : ''}> ${folder}</label>`).join('')}</div>
       </section>`;
     }).join('');
+    const searchValue = modal.querySelector('.admin-search').value.trim().toUpperCase();
+    if (searchValue) {
+      modal.querySelectorAll('.admin-product').forEach(section => {
+        section.hidden = !section.dataset.reference.includes(searchValue);
+      });
+    }
   };
+
+  modal.querySelector('.admin-search').addEventListener('input', event => {
+    const query = event.target.value.trim().toUpperCase();
+    modal.querySelectorAll('.admin-product').forEach(section => {
+      section.hidden = Boolean(query) && !section.dataset.reference.includes(query);
+    });
+  });
+  modal.querySelector('.catalog-admin-form').addEventListener('click', event => {
+    const photo = event.target.closest('.admin-product-photo');
+    if (!photo) return;
+    imageViewer.querySelector('img').src = photo.src;
+    imageViewer.querySelector('img').alt = photo.alt;
+    imageViewer.hidden = false;
+  });
 
   button.addEventListener('click', () => {
     renderForm();
