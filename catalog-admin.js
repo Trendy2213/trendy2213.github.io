@@ -90,7 +90,7 @@ const injectAdminInterface = () => {
       <button class="modal-close" type="button" aria-label="Cerrar">×</button>
       <p class="eyebrow">ADMINISTRACIÓN TRENDY</p>
       <h2>Panel de administración</h2>
-      <nav class="admin-tabs" aria-label="Secciones de administración"><button class="active" type="button" data-admin-tab="catalog">Productos y web</button><button type="button" data-admin-tab="quotes">Pedidos y presupuestos</button></nav>
+      <nav class="admin-tabs" aria-label="Secciones de administración"><button class="active" type="button" data-admin-tab="catalog">Productos y web</button><button type="button" data-admin-tab="quotes">Pedidos y presupuestos</button><button type="button" data-admin-tab="clients">Clientes</button><button type="button" data-admin-tab="analytics">Analítica</button></nav>
       <section class="admin-tab-panel" data-admin-panel="catalog">
         <p class="admin-help">Gestiona precios, disponibilidad, colores y las secciones de la web. Los precios son profesionales sin IVA.</p>
         <label class="admin-search-label">Buscar referencia<input class="admin-search" type="search" placeholder="Ej. MC955" autocomplete="off"></label>
@@ -99,8 +99,12 @@ const injectAdminInterface = () => {
         <button class="button dark save-catalog" type="button">Guardar cambios</button>
       </section>
       <section class="admin-tab-panel" data-admin-panel="quotes" hidden>
+        <div class="admin-orders-list"><p>Cargando pedidos…</p></div>
+        <h3>Crear o editar presupuesto</h3>
         <iframe class="admin-budget-frame" title="Pedidos y presupuestos Trendy" data-src="/presupuesto.html"></iframe>
       </section>
+      <section class="admin-tab-panel" data-admin-panel="clients" hidden><div class="admin-clients-list"><p>Cargando clientes…</p></div></section>
+      <section class="admin-tab-panel" data-admin-panel="analytics" hidden><div class="admin-analytics-view"><p>Cargando analítica…</p></div></section>
     </div>`;
   document.body.append(modal);
 
@@ -120,8 +124,9 @@ const injectAdminInterface = () => {
     .admin-product input[type="number"]{width:100%;min-height:44px;border:1px solid #cfc9c1;padding:8px 11px}
     .admin-colors,.admin-folders{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:15px;padding-top:15px;border-top:1px solid #e4dfd7}.admin-folders::before{content:'Secciones web';width:100%;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
     .catalog-admin-feedback{min-height:20px;font-weight:700}.save-catalog{width:100%}
+    .admin-data-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.admin-stat{padding:20px;background:#f7f4ef;border:1px solid #ddd5cb}.admin-stat strong{display:block;font-size:30px}.admin-table{width:100%;border-collapse:collapse;margin:18px 0}.admin-table th,.admin-table td{text-align:left;padding:10px;border-bottom:1px solid #ddd5cb;font-size:13px;vertical-align:top}.admin-table th{font-weight:900}.admin-orders-list h3,.admin-clients-list h3,.admin-analytics-view h3{font-size:28px;margin:25px 0 10px}
     .admin-image-viewer{position:fixed;inset:0;z-index:250;background:#000d;display:grid;place-items:center;padding:30px}.admin-image-viewer[hidden]{display:none}.admin-image-viewer img{display:block;max-width:92vw;max-height:90vh;object-fit:contain;background:#fff}.admin-image-viewer button{position:fixed;right:25px;top:20px;width:46px;height:46px;border:0;border-radius:50%;background:#fff;font-size:30px;cursor:pointer}
-    @media(max-width:700px){.catalog-admin-card{padding:45px 20px 28px}.admin-product-head{grid-template-columns:1fr}.admin-colors,.admin-folders{display:grid;grid-template-columns:1fr 1fr}.admin-tabs{overflow:auto}.admin-tabs button{white-space:nowrap}}
+    @media(max-width:700px){.catalog-admin-card{padding:45px 20px 28px}.admin-product-head{grid-template-columns:1fr}.admin-colors,.admin-folders{display:grid;grid-template-columns:1fr 1fr}.admin-tabs{overflow:auto}.admin-tabs button{white-space:nowrap}.admin-data-grid{grid-template-columns:1fr}.admin-table{display:block;overflow:auto}}
   `;
   document.head.append(style);
 
@@ -189,7 +194,36 @@ const injectAdminInterface = () => {
       const frame = modal.querySelector('.admin-budget-frame');
       if (!frame.getAttribute('src')) frame.src = frame.dataset.src;
     }
+    if (['quotes', 'clients', 'analytics'].includes(tab.dataset.adminTab)) loadAdminData();
   }));
+
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+  const loadAdminData = async () => {
+    const ordersBox = modal.querySelector('.admin-orders-list');
+    const clientsBox = modal.querySelector('.admin-clients-list');
+    const analyticsBox = modal.querySelector('.admin-analytics-view');
+    try {
+      const data = await window.TrendyData?.getAdminData?.();
+      if (!data) throw new Error('Cargando conexión segura…');
+      ordersBox.innerHTML = `<h3>Pedidos recibidos</h3>${data.orders.length ? `<table class="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Importe</th><th>Estado</th></tr></thead><tbody>${data.orders.map(order => `<tr><td><strong>${escapeHtml(order.id)}</strong><br>${order.items?.length || 0} líneas</td><td>${escapeHtml(order.customer?.company || order.customerEmail)}</td><td>${money(order.subtotal || 0)} sin IVA</td><td>${escapeHtml(order.status || 'Recibido')}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay pedidos online.</p>'}`;
+      clientsBox.innerHTML = `<h3>Fichas de clientes</h3>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Datos fiscales</th></tr></thead><tbody>${data.users.map(client => `<tr><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}</td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}</td><td>${escapeHtml(client.taxId)}<br>${escapeHtml([client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay fichas de clientes guardadas.</p>'}`;
+      const productViews = data.events.filter(event => event.type === 'product_view');
+      const cartAdds = data.events.filter(event => event.type === 'add_to_cart');
+      const searches = data.events.filter(event => event.type === 'search');
+      const popular = Object.entries(productViews.reduce((totals, event) => {
+        totals[event.reference] = (totals[event.reference] || 0) + 1;
+        return totals;
+      }, {})).sort((a, b) => b[1] - a[1]);
+      analyticsBox.innerHTML = `<h3>Actividad de clientes</h3><div class="admin-data-grid"><div class="admin-stat"><strong>${productViews.length}</strong>vistas de productos</div><div class="admin-stat"><strong>${cartAdds.length}</strong>productos añadidos</div><div class="admin-stat"><strong>${searches.length}</strong>búsquedas</div></div><h3>Productos más vistos</h3>${popular.length ? `<table class="admin-table"><thead><tr><th>Referencia</th><th>Visualizaciones</th></tr></thead><tbody>${popular.map(([reference, views]) => `<tr><td>${escapeHtml(reference)}</td><td>${views}</td></tr>`).join('')}</tbody></table>` : '<p>Aún no hay datos suficientes.</p>'}`;
+    } catch (error) {
+      const message = `<p>${escapeHtml(error.message || 'No se pudieron cargar los datos.')}</p>`;
+      ordersBox.innerHTML = message;
+      clientsBox.innerHTML = message;
+      analyticsBox.innerHTML = message;
+    }
+  };
   modal.querySelector('.save-catalog').addEventListener('click', async () => {
     const feedback = modal.querySelector('.catalog-admin-feedback');
     const saveButton = modal.querySelector('.save-catalog');
