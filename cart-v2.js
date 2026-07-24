@@ -14,7 +14,7 @@
     en: ['Form 036 *', 'Select Form 036. When your email app opens, attach this same file before sending.']
   }[lang];
   const enhancementStyles = document.createElement('style');
-  enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}';
+  enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}.modal-trade-price{font-size:20px;font-weight:900;margin:12px 0}.unavailable-message{color:#a52c20;font-weight:800}';
   document.head.append(enhancementStyles);
   const COLORS = copy.colors;
   const VARIANT_CROPS = {
@@ -65,7 +65,28 @@
   let selectedColor = '';
   let selectedPreview = '';
   let authenticatedClient = false;
+  let catalogSettings = {};
   const isRegisteredClient = () => authenticatedClient === true && Boolean(window.TrendyAuth?.isAuthenticated?.());
+  const productSettings = reference => catalogSettings[reference] || {
+    active: true,
+    price: null,
+    colors: Object.fromEntries(COLORS.map(color => [color, true]))
+  };
+
+  const applyCatalogToPage = () => {
+    document.querySelectorAll('.product').forEach(card => {
+      const settings = productSettings(card.dataset.reference);
+      card.hidden = isRegisteredClient() && settings.active === false;
+      let price = card.querySelector('.trade-price');
+      if (!price) {
+        price = document.createElement('p');
+        price.className = 'trade-price';
+        card.querySelector('.measure')?.after(price);
+      }
+      price.hidden = !isRegisteredClient() || settings.price == null;
+      price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · sin IVA`;
+    });
+  };
 
   const updatePrivateControls = () => {
     const allowed = isRegisteredClient();
@@ -94,6 +115,13 @@
     authenticatedClient = Boolean(event.detail?.authenticated);
     const logoutButton = loginModal.querySelector('.logout-button');
     if (logoutButton) logoutButton.hidden = !authenticatedClient;
+    updatePrivateControls();
+    applyCatalogToPage();
+  });
+
+  window.addEventListener('trendy-catalog-state', event => {
+    catalogSettings = event.detail?.catalog || {};
+    applyCatalogToPage();
     updatePrivateControls();
   });
 
@@ -269,7 +297,13 @@
   };
 
   const openProduct = card => {
-    selectedProduct = { ref: card.dataset.reference, name: card.dataset.name };
+    const settings = productSettings(card.dataset.reference);
+    if (isRegisteredClient() && settings.active === false) return;
+    selectedProduct = {
+      ref: card.dataset.reference,
+      name: card.dataset.name,
+      price: settings.price
+    };
     selectedColor = '';
     selectedPreview = '';
     sheetImage.src = card.querySelector('img').src;
@@ -279,13 +313,21 @@
     if (selectedLabel) selectedLabel.textContent = '';
     productModal.querySelector('.reference').textContent = selectedProduct.ref;
     productModal.querySelector('h2').textContent = selectedProduct.name;
+    let modalPrice = productModal.querySelector('.modal-trade-price');
+    if (!modalPrice) {
+      modalPrice = document.createElement('p');
+      modalPrice.className = 'modal-trade-price';
+      productModal.querySelector('h2').after(modalPrice);
+    }
+    modalPrice.hidden = !isRegisteredClient() || settings.price == null;
+    modalPrice.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · sin IVA`;
     productModal.querySelector('.quantity input').value = 1;
     productModal.querySelector('.error').textContent = '';
     productModal.querySelector('.modal-card').scrollTop = 0;
 
     const colorList = productModal.querySelector('.color-list');
     colorList.innerHTML = '';
-    const colors = COLORS;
+    const colors = COLORS.filter(color => settings.colors?.[color] !== false);
     colors.forEach((color, index) => {
       const button = document.createElement('button');
       button.className = 'color-choice';
@@ -296,10 +338,13 @@
         colorList.querySelectorAll('button').forEach(item => item.classList.remove('active'));
         button.classList.add('active');
         productModal.querySelector('.error').textContent = '';
-        showSelectedColor(card, index);
+        showSelectedColor(card, COLORS.indexOf(color));
       });
       colorList.append(button);
     });
+    if (!colors.length) {
+      productModal.querySelector('.error').textContent = 'Este producto no tiene colores disponibles actualmente.';
+    }
 
     productModal.hidden = false;
     updatePrivateControls();
@@ -318,10 +363,13 @@
   };
 
   const orderText = () => {
-    const lines = cart.map(item => `${item.ref} - ${item.name} - ${item.color}: ${item.qty} ${copy.units}`).join('\n');
+    const lines = cart.map(item => {
+      const unit = item.price == null ? '' : ` × ${window.TrendyCatalog?.formatPrice?.(item.price) || item.price.toFixed(2) + ' €'}`;
+      return `${item.ref} - ${item.name} - ${item.color}: ${item.qty} ${copy.units}${unit}`;
+    }).join('\n');
     const orderData = btoa(unescape(encodeURIComponent(JSON.stringify({
       createdAt: new Date().toISOString(),
-      items: cart.map(({ ref, name, color, qty }) => ({ ref, name, color, qty }))
+      items: cart.map(({ ref, name, color, qty, price }) => ({ ref, name, color, qty, price }))
     }))));
     const budgetLink = `${location.origin}/presupuesto.html?pedido=${encodeURIComponent(orderData)}`;
     return `${copy.orderStart}\n${lines}\n\n${copy.orderEnd}\n\nPanel Trendy Bag: ${budgetLink}`;
@@ -332,9 +380,14 @@
       openLogin(copy.cartGate);
       return;
     }
+    cart = cart.filter(item => {
+      const settings = productSettings(item.ref);
+      return settings.active !== false && settings.colors?.[item.color] !== false;
+    }).map(item => ({ ...item, price: productSettings(item.ref).price }));
+    saveCart();
     const lines = cartModal.querySelector('.cart-lines');
     lines.innerHTML = cart.length
-      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades</div></div>`).join('')
+      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades${item.price == null ? '' : `<br><strong>${window.TrendyCatalog?.formatPrice?.(item.price * item.qty) || (item.price * item.qty).toFixed(2) + ' €'} sin IVA</strong>`}</div></div>`).join('')
       : `<p class="empty">${copy.empty}</p>`;
 
     lines.querySelectorAll('button').forEach(button => {
@@ -369,8 +422,14 @@
       productModal.querySelector('.error').textContent = copy.choose;
       return;
     }
+    const currentSettings = productSettings(selectedProduct.ref);
+    if (currentSettings.active === false || currentSettings.colors?.[selectedColor] === false) {
+      productModal.querySelector('.error').textContent = 'Este producto o color ya no está disponible.';
+      return;
+    }
 
     const qty = Math.max(1, Number(productModal.querySelector('.quantity input').value) || 1);
+    selectedProduct.price = currentSettings.price;
     const existing = cart.find(item => item.ref === selectedProduct.ref && item.color === selectedColor);
     if (existing) {
       existing.qty += qty;
