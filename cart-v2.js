@@ -39,11 +39,15 @@
   const headerCartCount = document.querySelector('.header-cart-count');
   const loginModal = document.querySelector('#login-modal');
   const loginForm = loginModal.querySelector('.login-form');
-  const passwordLabel = loginForm.querySelector('[name="password"]').closest('label');
-  const rememberLabel = document.createElement('label');
-  rememberLabel.style.cssText = 'display:flex;align-items:center;gap:9px;font-weight:400';
-  rememberLabel.innerHTML = '<input name="remember" type="checkbox" checked style="width:18px;min-height:18px;margin:0"> Recordarme en este equipo';
-  passwordLabel.after(rememberLabel);
+  const passwordInput = loginForm.querySelector('[name="password"], input[type="password"]');
+  const existingRemember = [...loginForm.querySelectorAll('[name="remember"]')];
+  existingRemember.slice(1).forEach(input => input.closest('label')?.remove());
+  if (!existingRemember.length) {
+    const rememberLabel = document.createElement('label');
+    rememberLabel.style.cssText = 'display:flex;align-items:center;gap:9px;font-weight:400';
+    rememberLabel.innerHTML = '<input name="remember" type="checkbox" checked style="width:18px;min-height:18px;margin:0"> Recordarme en este equipo';
+    passwordInput.closest('label').after(rememberLabel);
+  }
   const requestGrid = loginModal.querySelector('.request-grid');
   if (requestGrid && !requestGrid.querySelector('[name="model036"]')) {
     const messageField = requestGrid.querySelector('textarea[name="message"]')?.closest('label');
