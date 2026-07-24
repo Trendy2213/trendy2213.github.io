@@ -57,6 +57,13 @@ const money = value => Number(value).toLocaleString('es-ES', {
   minimumFractionDigits: 2
 });
 
+const productImage = reference => {
+  const card = [...document.querySelectorAll('.product-card, article')].find(item =>
+    item.querySelector('.reference')?.textContent.trim() === reference
+  );
+  return card?.querySelector('img')?.src || '';
+};
+
 const injectAdminInterface = () => {
   if (document.querySelector('#catalog-admin-button')) return;
   const headerTools = document.querySelector('.header-tools');
@@ -94,7 +101,8 @@ const injectAdminInterface = () => {
     .catalog-admin-card{display:block!important;width:min(920px,96vw)!important;padding:45px;max-height:94vh;overflow:auto}
     .catalog-admin-card h2{font-size:42px;margin:10px 0}.admin-help{color:#5d5954;line-height:1.5}
     .catalog-admin-form{display:grid;gap:14px;margin:25px 0}.admin-product{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}
-    .admin-product-head{display:grid;grid-template-columns:auto 1fr 190px;gap:16px;align-items:center}
+    .admin-product-head{display:grid;grid-template-columns:auto 82px 1fr 190px;gap:16px;align-items:center}
+    .admin-product-photo{width:82px;height:82px;object-fit:contain;background:#fff;border:1px solid #e4dfd7;padding:5px}
     .admin-product-head label,.admin-colors label{display:flex;align-items:center;gap:8px;font-weight:700}
     .admin-product input[type="number"]{width:100%;min-height:44px;border:1px solid #cfc9c1;padding:8px 11px}
     .admin-colors{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:15px;padding-top:15px;border-top:1px solid #e4dfd7}
@@ -106,9 +114,11 @@ const injectAdminInterface = () => {
   const renderForm = () => {
     modal.querySelector('.catalog-admin-form').innerHTML = REFERENCES.map(reference => {
       const item = catalog[reference];
+      const image = productImage(reference);
       return `<section class="admin-product" data-reference="${reference}">
         <div class="admin-product-head">
           <label><input class="admin-active" type="checkbox" ${item.active ? 'checked' : ''}> Disponible</label>
+          ${image ? `<img class="admin-product-photo" src="${image}" alt="${reference}">` : ''}
           <strong>${reference}</strong>
           <label>Precio sin IVA (€)<input class="admin-price" type="number" min="0" step="0.01" value="${item.price ?? ''}" placeholder="0,00"></label>
         </div>
