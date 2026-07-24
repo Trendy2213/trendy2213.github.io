@@ -14,7 +14,7 @@
     en: ['Form 036 *', 'Select Form 036. When your email app opens, attach this same file before sending.']
   }[lang];
   const enhancementStyles = document.createElement('style');
-  enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}.modal-trade-price{font-size:20px;font-weight:900;margin:12px 0}.unavailable-message{color:#a52c20;font-weight:800}';
+  enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}.modal-trade-price{font-size:20px;font-weight:900;margin:12px 0}.unavailable-message{color:#a52c20;font-weight:800}.category-nav [data-folder].active{border-color:currentColor;font-weight:900}';
   document.head.append(enhancementStyles);
   const COLORS = copy.colors;
   const VARIANT_CROPS = {
@@ -66,17 +66,20 @@
   let selectedPreview = '';
   let authenticatedClient = false;
   let catalogSettings = {};
+  let activeFolder = 'Novedades';
   const isRegisteredClient = () => authenticatedClient === true && Boolean(window.TrendyAuth?.isAuthenticated?.());
   const productSettings = reference => catalogSettings[reference] || {
     active: true,
     price: null,
-    colors: Object.fromEntries(COLORS.map(color => [color, true]))
+    colors: Object.fromEntries(COLORS.map(color => [color, true])),
+    folders: {Novedades:true,Bolsos:true}
   };
 
   const applyCatalogToPage = () => {
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
-      card.hidden = isRegisteredClient() && settings.active === false;
+      const belongsToFolder = settings.folders?.[activeFolder] !== false;
+      card.hidden = (isRegisteredClient() && settings.active === false) || !belongsToFolder;
       let price = card.querySelector('.trade-price');
       if (!price) {
         price = document.createElement('p');
@@ -87,6 +90,14 @@
       price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · sin IVA`;
     });
   };
+
+  document.querySelectorAll('.category-nav [data-folder]').forEach(link => {
+    link.addEventListener('click', () => {
+      activeFolder = link.dataset.folder;
+      document.querySelectorAll('.category-nav [data-folder]').forEach(item => item.classList.toggle('active', item === link));
+      applyCatalogToPage();
+    });
+  });
 
   const updatePrivateControls = () => {
     const allowed = isRegisteredClient();
