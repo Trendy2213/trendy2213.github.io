@@ -17,11 +17,13 @@ const firebaseConfig = window.TRENDY_FIREBASE_CONFIG || {
 
 const ADMIN_EMAIL = 'trendybag@hotmail.com';
 const COLORS = ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 'Morado', 'Verde salvia', 'Negro'];
+const FOLDERS = ['Novedades', 'Bolsos', 'Viaje', 'Monederos', 'Cinturones', 'Complementos'];
 const REFERENCES = ['MC955', 'MC959', 'MC956', 'MC954', 'MC953', 'MC951', 'MC950'];
 const defaultProduct = () => ({
   active: true,
   price: null,
-  colors: Object.fromEntries(COLORS.map(color => [color, true]))
+  colors: Object.fromEntries(COLORS.map(color => [color, true])),
+  folders: Object.fromEntries(FOLDERS.map(folder => [folder, ['Novedades', 'Bolsos'].includes(folder)]))
 });
 const defaults = Object.fromEntries(REFERENCES.map(reference => [reference, defaultProduct()]));
 
@@ -41,7 +43,8 @@ const mergeCatalog = remote => Object.fromEntries(REFERENCES.map(reference => {
   return [reference, {
     active: saved.active !== false,
     price: Number.isFinite(Number(saved.price)) && saved.price !== '' ? Number(saved.price) : null,
-    colors: Object.fromEntries(COLORS.map(color => [color, saved.colors?.[color] !== false]))
+    colors: Object.fromEntries(COLORS.map(color => [color, saved.colors?.[color] !== false])),
+    folders: Object.fromEntries(FOLDERS.map(folder => [folder, saved.folders?.[folder] ?? base.folders[folder]]))
   }];
 }));
 
@@ -72,7 +75,7 @@ const injectAdminInterface = () => {
   button.className = 'header-tool';
   button.type = 'button';
   button.hidden = true;
-  button.setAttribute('aria-label', 'Administrar catálogo');
+  button.setAttribute('aria-label', 'Panel de administración');
   button.innerHTML = '<span style="font-size:21px" aria-hidden="true">⚙</span>';
   headerTools?.prepend(button);
 
@@ -85,12 +88,18 @@ const injectAdminInterface = () => {
   modal.innerHTML = `
     <div class="modal-card catalog-admin-card">
       <button class="modal-close" type="button" aria-label="Cerrar">×</button>
-      <p class="eyebrow">ADMINISTRACIÓN</p>
-      <h2>Precios y disponibilidad</h2>
-      <p class="admin-help">Los precios son profesionales sin IVA. Desmarca un producto o color para impedir que los clientes puedan pedirlo.</p>
-      <form class="catalog-admin-form"></form>
-      <p class="catalog-admin-feedback" role="status"></p>
-      <button class="button dark save-catalog" type="button">Guardar cambios</button>
+      <p class="eyebrow">ADMINISTRACIÓN TRENDY</p>
+      <h2>Panel de administración</h2>
+      <nav class="admin-tabs" aria-label="Secciones de administración"><button class="active" type="button" data-admin-tab="catalog">Productos y web</button><button type="button" data-admin-tab="quotes">Pedidos y presupuestos</button></nav>
+      <section class="admin-tab-panel" data-admin-panel="catalog">
+        <p class="admin-help">Gestiona precios, disponibilidad, colores y las secciones de la web. Los precios son profesionales sin IVA.</p>
+        <form class="catalog-admin-form"></form>
+        <p class="catalog-admin-feedback" role="status"></p>
+        <button class="button dark save-catalog" type="button">Guardar cambios</button>
+      </section>
+      <section class="admin-tab-panel" data-admin-panel="quotes" hidden>
+        <iframe class="admin-budget-frame" title="Pedidos y presupuestos Trendy" data-src="/presupuesto.html"></iframe>
+      </section>
     </div>`;
   document.body.append(modal);
 
@@ -100,14 +109,16 @@ const injectAdminInterface = () => {
     .product-unavailable{opacity:.5}.product-unavailable .product-image{cursor:not-allowed}
     .catalog-admin-card{display:block!important;width:min(920px,96vw)!important;padding:45px;max-height:94vh;overflow:auto}
     .catalog-admin-card h2{font-size:42px;margin:10px 0}.admin-help{color:#5d5954;line-height:1.5}
+    .admin-tabs{display:flex;gap:8px;margin:22px 0;border-bottom:1px solid #ddd5cb}.admin-tabs button{border:0;background:none;padding:12px 15px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent}.admin-tabs button.active{border-color:#171717}
+    .admin-tab-panel[hidden]{display:none!important}.admin-budget-frame{width:100%;height:70vh;border:1px solid #ddd5cb;background:#f4f1eb}
     .catalog-admin-form{display:grid;gap:14px;margin:25px 0}.admin-product{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}
     .admin-product-head{display:grid;grid-template-columns:auto 82px 1fr 190px;gap:16px;align-items:center}
     .admin-product-photo{width:82px;height:82px;object-fit:contain;background:#fff;border:1px solid #e4dfd7;padding:5px}
     .admin-product-head label,.admin-colors label{display:flex;align-items:center;gap:8px;font-weight:700}
     .admin-product input[type="number"]{width:100%;min-height:44px;border:1px solid #cfc9c1;padding:8px 11px}
-    .admin-colors{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:15px;padding-top:15px;border-top:1px solid #e4dfd7}
+    .admin-colors,.admin-folders{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:15px;padding-top:15px;border-top:1px solid #e4dfd7}.admin-folders::before{content:'Secciones web';width:100%;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
     .catalog-admin-feedback{min-height:20px;font-weight:700}.save-catalog{width:100%}
-    @media(max-width:700px){.catalog-admin-card{padding:45px 20px 28px}.admin-product-head{grid-template-columns:1fr}.admin-colors{display:grid;grid-template-columns:1fr 1fr}}
+    @media(max-width:700px){.catalog-admin-card{padding:45px 20px 28px}.admin-product-head{grid-template-columns:1fr}.admin-colors,.admin-folders{display:grid;grid-template-columns:1fr 1fr}.admin-tabs{overflow:auto}.admin-tabs button{white-space:nowrap}}
   `;
   document.head.append(style);
 
@@ -123,6 +134,7 @@ const injectAdminInterface = () => {
           <label>Precio sin IVA (€)<input class="admin-price" type="number" min="0" step="0.01" value="${item.price ?? ''}" placeholder="0,00"></label>
         </div>
         <div class="admin-colors">${COLORS.map(color => `<label><input type="checkbox" data-color="${color}" ${item.colors[color] ? 'checked' : ''}> ${color}</label>`).join('')}</div>
+        <div class="admin-folders">${FOLDERS.map(folder => `<label><input type="checkbox" data-folder="${folder}" ${item.folders[folder] ? 'checked' : ''}> ${folder}</label>`).join('')}</div>
       </section>`;
     }).join('');
   };
@@ -136,6 +148,14 @@ const injectAdminInterface = () => {
     modal.hidden = true;
     document.body.style.overflow = '';
   });
+  modal.querySelectorAll('[data-admin-tab]').forEach(tab => tab.addEventListener('click', () => {
+    modal.querySelectorAll('[data-admin-tab]').forEach(item => item.classList.toggle('active', item === tab));
+    modal.querySelectorAll('[data-admin-panel]').forEach(panel => { panel.hidden = panel.dataset.adminPanel !== tab.dataset.adminTab; });
+    if (tab.dataset.adminTab === 'quotes') {
+      const frame = modal.querySelector('.admin-budget-frame');
+      if (!frame.getAttribute('src')) frame.src = frame.dataset.src;
+    }
+  }));
   modal.querySelector('.save-catalog').addEventListener('click', async () => {
     const feedback = modal.querySelector('.catalog-admin-feedback');
     const saveButton = modal.querySelector('.save-catalog');
@@ -146,7 +166,8 @@ const injectAdminInterface = () => {
       next[reference] = {
         active: section.querySelector('.admin-active').checked,
         price: rawPrice === '' ? null : Math.max(0, Number(rawPrice)),
-        colors: Object.fromEntries([...section.querySelectorAll('[data-color]')].map(input => [input.dataset.color, input.checked]))
+        colors: Object.fromEntries([...section.querySelectorAll('[data-color]')].map(input => [input.dataset.color, input.checked])),
+        folders: Object.fromEntries([...section.querySelectorAll('[data-folder]')].map(input => [input.dataset.folder, input.checked]))
       };
     });
     saveButton.disabled = true;
