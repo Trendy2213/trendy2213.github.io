@@ -14,7 +14,7 @@
     en: ['Form 036 *', 'Select Form 036. When your email app opens, attach this same file before sending.']
   }[lang];
   const enhancementStyles = document.createElement('style');
-  enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}.modal-trade-price{font-size:20px;font-weight:900;margin:12px 0}.unavailable-message{color:#a52c20;font-weight:800}.category-nav [data-folder].active{border-color:currentColor;font-weight:900}';
+  enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}.modal-trade-price{font-size:20px;font-weight:900;margin:12px 0}.unavailable-message{color:#a52c20;font-weight:800}.category-nav [data-folder].active{border-color:currentColor;font-weight:900}.catalog-tools{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin:0 0 30px;padding:18px;background:#f7f4ef;border:1px solid #e4dfd7}.catalog-tools label{display:grid;gap:7px;font-size:12px;font-weight:800}.catalog-tools input,.catalog-tools select{width:100%;min-height:46px;border:1px solid #cfc9c1;background:#fff;padding:9px 11px}.catalog-results{grid-column:1/-1;margin:0;color:#666;font-size:13px}.cart-summary{padding:15px;background:#f7f4ef;border:1px solid #e4dfd7;margin:14px 0}.cart-summary strong{font-size:22px}.minimum-warning{color:#a52c20;font-weight:800}.send-order[aria-disabled="true"]{opacity:.45;pointer-events:none}@media(max-width:700px){.catalog-tools{grid-template-columns:1fr}.catalog-results{grid-column:auto}}';
   document.head.append(enhancementStyles);
   const COLORS = copy.colors;
   const VARIANT_CROPS = {
@@ -67,6 +67,10 @@
   let authenticatedClient = false;
   let catalogSettings = {};
   let activeFolder = 'Novedades';
+  let searchTerm = new URLSearchParams(location.search).get('q')?.trim().toLowerCase() || '';
+  let colorFilter = '';
+  let availabilityFilter = 'all';
+  const MINIMUM_ORDER = 100;
   const isRegisteredClient = () => authenticatedClient === true && Boolean(window.TrendyAuth?.isAuthenticated?.());
   const productSettings = reference => catalogSettings[reference] || {
     active: true,
@@ -76,10 +80,17 @@
   };
 
   const applyCatalogToPage = () => {
+    let visibleCount = 0;
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
       const belongsToFolder = settings.folders?.[activeFolder] !== false;
-      card.hidden = (isRegisteredClient() && settings.active === false) || !belongsToFolder;
+      const searchable = `${card.dataset.reference} ${card.dataset.name} ${card.textContent}`.toLowerCase();
+      const matchesSearch = !searchTerm || searchable.includes(searchTerm);
+      const matchesColor = !colorFilter || settings.colors?.[colorFilter] !== false;
+      const matchesAvailability = availabilityFilter !== 'available' || settings.active !== false;
+      card.hidden = (isRegisteredClient() && settings.active === false)
+        || !belongsToFolder || !matchesSearch || !matchesColor || !matchesAvailability;
+      if (!card.hidden) visibleCount += 1;
       let price = card.querySelector('.trade-price');
       if (!price) {
         price = document.createElement('p');
@@ -89,13 +100,42 @@
       price.hidden = !isRegisteredClient() || settings.price == null;
       price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · sin IVA`;
     });
+    const results = document.querySelector('.catalog-results');
+    if (results) results.textContent = `${visibleCount} producto${visibleCount === 1 ? '' : 's'}`;
   };
+
+  const productGrid = document.querySelector('.product-grid');
+  if (productGrid && !document.querySelector('.catalog-tools')) {
+    const tools = document.createElement('div');
+    tools.className = 'catalog-tools';
+    tools.innerHTML = `<label>Buscar producto<input class="catalog-search" type="search" placeholder="Referencia o nombre"></label>
+      <label>Color<select class="catalog-color"><option value="">Todos los colores</option>${COLORS.map(color => `<option value="${color}">${color}</option>`).join('')}</select></label>
+      <label>Disponibilidad<select class="catalog-availability"><option value="all">Todos</option><option value="available">Disponibles</option></select></label>
+      <p class="catalog-results"></p>`;
+    productGrid.before(tools);
+    tools.querySelector('.catalog-search').value = searchTerm;
+    tools.querySelector('.catalog-search').addEventListener('input', event => {
+      searchTerm = event.target.value.trim().toLowerCase();
+      applyCatalogToPage();
+      window.TrendyData?.track?.('search', { query: searchTerm });
+    });
+    tools.querySelector('.catalog-color').addEventListener('change', event => {
+      colorFilter = event.target.value;
+      applyCatalogToPage();
+      window.TrendyData?.track?.('filter_color', { color: colorFilter });
+    });
+    tools.querySelector('.catalog-availability').addEventListener('change', event => {
+      availabilityFilter = event.target.value;
+      applyCatalogToPage();
+    });
+  }
 
   document.querySelectorAll('.category-nav [data-folder]').forEach(link => {
     link.addEventListener('click', () => {
       activeFolder = link.dataset.folder;
       document.querySelectorAll('.category-nav [data-folder]').forEach(item => item.classList.toggle('active', item === link));
       applyCatalogToPage();
+      window.TrendyData?.track?.('filter_category', { folder: activeFolder });
     });
   });
 
@@ -358,6 +398,7 @@
     }
 
     productModal.hidden = false;
+    window.TrendyData?.track?.('product_view', { reference: selectedProduct.ref });
     updatePrivateControls();
     document.body.style.overflow = 'hidden';
   };
@@ -411,14 +452,24 @@
 
     const whatsappLink = cartModal.querySelector('.send-order');
     const hasItems = cart.length > 0;
-    whatsappLink.hidden = !hasItems;
-    whatsappLink.setAttribute('aria-disabled', String(!hasItems));
-    if (hasItems) {
-      const text = orderText();
-      whatsappLink.href = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-    } else {
-      whatsappLink.removeAttribute('href');
+    const priced = hasItems && cart.every(item => Number.isFinite(Number(item.price)));
+    const subtotal = priced ? cart.reduce((total, item) => total + Number(item.price) * item.qty, 0) : 0;
+    let summary = cartModal.querySelector('.cart-summary');
+    if (!summary) {
+      summary = document.createElement('div');
+      summary.className = 'cart-summary';
+      cartModal.querySelector('.cart-actions').before(summary);
     }
+    summary.hidden = !hasItems;
+    summary.innerHTML = priced
+      ? `<span>Total sin IVA</span><br><strong>${window.TrendyCatalog?.formatPrice?.(subtotal) || subtotal.toFixed(2) + ' €'}</strong>${subtotal < MINIMUM_ORDER ? `<p class="minimum-warning">El pedido mínimo es de ${MINIMUM_ORDER.toFixed(2)} € sin IVA. Faltan ${(MINIMUM_ORDER - subtotal).toFixed(2)} €.</p>` : ''}`
+      : '<p class="minimum-warning">Falta indicar el precio de algún producto. Trendy Bag debe completar los precios antes de enviar pedidos online.</p>';
+    const canSend = hasItems && priced && subtotal >= MINIMUM_ORDER;
+    whatsappLink.hidden = !hasItems;
+    whatsappLink.setAttribute('aria-disabled', String(!canSend));
+    whatsappLink.removeAttribute('href');
+    whatsappLink.dataset.canSend = String(canSend);
+    whatsappLink.dataset.subtotal = String(subtotal);
     cartModal.hidden = false;
     document.body.style.overflow = 'hidden';
   };
@@ -449,6 +500,7 @@
       cart.push({ ...selectedProduct, color: selectedColor, qty, preview: selectedPreview });
     }
     saveCart();
+    window.TrendyData?.track?.('add_to_cart', { reference: selectedProduct.ref, color: selectedColor, quantity: qty });
     productModal.querySelector('.quantity input').value = 1;
     const addButton = productModal.querySelector('.add-selected');
     const originalLabel = addButton.textContent;
@@ -531,6 +583,26 @@
     cart = [];
     saveCart();
     openCart();
+  });
+  cartModal.querySelector('.send-order').addEventListener('click', async event => {
+    event.preventDefault();
+    const link = event.currentTarget;
+    if (link.dataset.canSend !== 'true') return;
+    const orderId = `TB-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${String(Date.now()).slice(-5)}`;
+    const subtotal = Number(link.dataset.subtotal) || 0;
+    try {
+      await window.TrendyData?.saveOrder?.({
+        id: orderId,
+        items: cart.map(({ ref, name, color, qty, price }) => ({ ref, name, color, qty, price })),
+        subtotal,
+        minimumOrder: MINIMUM_ORDER
+      });
+      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\nTotal sin IVA: ${subtotal.toFixed(2)} €`;
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    } catch (error) {
+      const summary = cartModal.querySelector('.cart-summary');
+      summary.innerHTML += `<p class="minimum-warning">${error.message || 'No se pudo registrar el pedido.'}</p>`;
+    }
   });
 
   document.addEventListener('keydown', event => {
