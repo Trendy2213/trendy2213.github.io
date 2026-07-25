@@ -78,8 +78,27 @@
     colors: Object.fromEntries(COLORS.map(color => [color, true])),
     folders: {Novedades:true,Bolsos:true}
   };
+  const syncDynamicProducts = () => {
+    const grid = document.querySelector('.product-grid');
+    if (!grid) return;
+    Object.entries(catalogSettings).forEach(([reference, settings]) => {
+      if (grid.querySelector(`[data-reference="${CSS.escape(reference)}"]`) || !settings.image) return;
+      const card = document.createElement('article');
+      card.className = 'product';
+      card.dataset.reference = reference;
+      card.dataset.name = settings.name || reference;
+      card.dataset.dynamic = 'true';
+      card.innerHTML = `<button class="product-image" type="button" aria-label="${settings.name || reference}">
+        <img src="${settings.image}" alt="${settings.name || reference}" loading="lazy">
+      </button><div class="product-copy"><p class="reference">${reference}</p>
+        <h3>${settings.name || reference}</h3><p class="measure">${settings.measures || ''}</p>
+        <p class="product-hint">Pulsa la foto para pedir</p></div>`;
+      grid.append(card);
+    });
+  };
 
   const applyCatalogToPage = () => {
+    syncDynamicProducts();
     let visibleCount = 0;
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
@@ -403,8 +422,9 @@
     document.body.style.overflow = 'hidden';
   };
 
-  document.querySelectorAll('.product-image').forEach(button => {
-    button.addEventListener('click', () => openProduct(button.closest('.product')));
+  productGrid?.addEventListener('click', event => {
+    const button = event.target.closest('.product-image');
+    if (button) openProduct(button.closest('.product'));
   });
 
   const saveCart = () => {
