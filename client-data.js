@@ -216,6 +216,10 @@ window.TrendyData = {
     if (!user || user.email?.toLowerCase() !== ADMIN) throw new Error('No autorizado');
     await updateDoc(doc(db, 'orders', orderId), { ...changes, updatedAt: serverTimestamp() });
   },
+  async updateClient(clientId, changes) {
+    if (!user || user.email?.toLowerCase() !== ADMIN) throw new Error('No autorizado');
+    await updateDoc(doc(db, 'users', clientId), { ...changes, updatedAt: serverTimestamp() });
+  },
   async getAdminData() {
     if (!user || user.email?.toLowerCase() !== ADMIN) throw new Error('No autorizado');
     const [users, orders, events] = await Promise.all([
