@@ -18,7 +18,28 @@ const firebaseConfig = window.TRENDY_FIREBASE_CONFIG || {
 
 const ADMIN_EMAIL = 'trendybag@hotmail.com';
 const COLORS = ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 'Morado', 'Verde salvia', 'Negro'];
-const FOLDERS = ['Novedades', 'Bolsos', 'Viaje', 'Monederos', 'Cinturones', 'Complementos'];
+const FOLDERS = [
+  'Novedades',
+  'Bolsos',
+  'Hombro',
+  'Bandoleras',
+  'Mochilas',
+  'Riñoneras',
+  'Bolsos de rafia/capazos',
+  'Bolsos de hombre',
+  'Viaje',
+  'Viaje / Maletas',
+  'Viaje / Bolsas de viaje',
+  'Viaje / Mochilas de viaje',
+  'Viaje / Riñoneras',
+  'Monederos',
+  'Monederos / Monederos de mujer',
+  'Monederos / Monederos de hombre',
+  'Cinturones',
+  'Cinturones / Cinturones de mujer',
+  'Cinturones / Cinturones de hombre',
+  'Complementos'
+];
 const BASE_REFERENCES = ['MC955', 'MC959', 'MC956', 'MC954', 'MC953', 'MC951', 'MC950'];
 let references = [...BASE_REFERENCES];
 const defaultProduct = () => ({
