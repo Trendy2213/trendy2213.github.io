@@ -48,7 +48,7 @@ profileModal.innerHTML = `<div class="modal-card client-profile-card">
 </div>`;
 document.body.append(profileModal);
 const style = document.createElement('style');
-style.textContent = `.client-profile-card{display:block!important;width:min(820px,96vw)!important;padding:48px;max-height:94vh;overflow:auto}.client-profile-card h2{font-size:42px;margin:10px 0}.client-account-tabs{display:flex;gap:8px;margin:22px 0;border-bottom:1px solid #ddd5cb}.client-account-tabs button{border:0;background:none;padding:12px 15px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent}.client-account-tabs button.active{border-color:#171717}.client-profile-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:24px}.client-profile-form label{display:grid;gap:7px;font-size:13px;font-weight:800}.client-profile-form input{width:100%;min-height:48px;border:1px solid #cfc9c1;padding:10px 12px}.client-profile-form .wide{grid-column:1/-1}.profile-feedback{min-height:18px}.client-orders{display:grid;gap:12px}.client-order{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}.client-order-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.client-order-items{margin:12px 0 0;padding-left:18px;color:#555}.client-order-status{display:inline-flex;padding:6px 10px;background:#e9e0d2;font-size:12px;font-weight:900}.client-order-total{font-size:20px;font-weight:900}@media(max-width:700px){.client-profile-card{padding:50px 20px 28px}.client-profile-form{grid-template-columns:1fr}.client-profile-form .wide{grid-column:auto}.client-order-head{display:grid}}`;
+style.textContent = `.client-profile-card{display:block!important;width:min(820px,96vw)!important;padding:48px;max-height:94vh;overflow:auto}.client-profile-card h2{font-size:42px;margin:10px 0}.client-account-tabs{display:flex;gap:8px;margin:22px 0;border-bottom:1px solid #ddd5cb}.client-account-tabs button{border:0;background:none;padding:12px 15px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent}.client-account-tabs button.active{border-color:#171717}.client-profile-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:24px}.client-profile-form label{display:grid;gap:7px;font-size:13px;font-weight:800}.client-profile-form input{width:100%;min-height:48px;border:1px solid #cfc9c1;padding:10px 12px}.client-profile-form .wide{grid-column:1/-1}.profile-feedback{min-height:18px}.client-orders{display:grid;gap:12px}.client-order{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}.client-order-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.client-order-items{margin:12px 0 0;padding-left:18px;color:#555}.client-order-status{display:inline-flex;padding:6px 10px;background:#e9e0d2;font-size:12px;font-weight:900}.client-order-total{font-size:20px;font-weight:900}.client-order-quote{margin-top:15px;padding:15px;border:1px solid #ddd5cb;background:#fff}.quote-response-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.quote-response-actions button{border:1px solid #171717;background:#fff;padding:10px 14px;font-weight:800;cursor:pointer}.quote-response-actions .accept-quote{background:#171717;color:#fff}.quote-response-feedback{min-height:18px;font-size:13px;font-weight:700}@media(max-width:700px){.client-profile-card{padding:50px 20px 28px}.client-profile-form{grid-template-columns:1fr}.client-profile-form .wide{grid-column:auto}.client-order-head{display:grid}}`;
 document.head.append(style);
 
 const form = profileModal.querySelector('form');
@@ -101,12 +101,45 @@ const loadMyOrders = async () => {
         <span class="client-order-total">${formatMoney(order.subtotal)} sin IVA</span>
       </div>
       <ul class="client-order-items">${(order.items || []).map(item => `<li>${escapeHtml(item.reference || item.ref)} · ${escapeHtml(item.color)} · ${Number(item.quantity || item.qty || 0)} uds.</li>`).join('')}</ul>
-      ${order.quote ? `<div class="client-order-quote"><strong>Presupuesto ${escapeHtml(order.quote.number)}</strong><br>Total: <span class="client-order-total">${formatMoney(order.quote.total)}</span><br><small>${escapeHtml(order.quote.notes || 'Pendiente de aceptación y pago.')}</small></div>` : ''}
+      ${order.quote ? `<div class="client-order-quote"><strong>Presupuesto ${escapeHtml(order.quote.number)}</strong><br>Total: <span class="client-order-total">${formatMoney(order.quote.total)}</span><br><small>${escapeHtml(order.quote.notes || 'Pendiente de aceptación y pago.')}</small>
+        ${order.quoteResponse ? `<p><strong>Tu respuesta:</strong> ${order.quoteResponse.accepted ? 'Aceptado' : 'Rechazado'}.</p>` : `<div class="quote-response-actions"><button class="accept-quote" type="button" data-order-id="${escapeHtml(order.id)}">Aceptar presupuesto</button><button class="reject-quote" type="button" data-order-id="${escapeHtml(order.id)}">Rechazar / solicitar cambios</button></div>`}
+        <p class="quote-response-feedback" role="status"></p>
+      </div>` : ''}
     </article>`).join('') : '<p>Todavía no has enviado ningún pedido.</p>';
   } catch {
     box.innerHTML = '<p>No se pudieron cargar los pedidos. Vuelve a intentarlo.</p>';
   }
 };
+profileModal.querySelector('.client-orders').addEventListener('click', async event => {
+  const button = event.target.closest('.accept-quote, .reject-quote');
+  if (!button || !user) return;
+  const accepted = button.classList.contains('accept-quote');
+  if (!confirm(accepted
+    ? '¿Confirmas que aceptas este presupuesto?'
+    : '¿Confirmas que quieres rechazarlo o solicitar cambios?')) return;
+  const card = button.closest('.client-order');
+  const feedback = card.querySelector('.quote-response-feedback');
+  card.querySelectorAll('.quote-response-actions button').forEach(item => { item.disabled = true; });
+  feedback.textContent = 'Guardando tu respuesta…';
+  try {
+    await updateDoc(doc(db, 'orders', button.dataset.orderId), {
+      quoteResponse: {
+        accepted,
+        respondedAt: new Date().toISOString(),
+        customerEmail: user.email || ''
+      },
+      status: accepted ? 'Presupuesto aceptado' : 'Presupuesto rechazado',
+      updatedAt: serverTimestamp()
+    });
+    feedback.textContent = accepted
+      ? 'Presupuesto aceptado. Trendy Bag te indicará los datos de pago.'
+      : 'Respuesta enviada. Trendy Bag contactará contigo para revisar el presupuesto.';
+    await loadMyOrders();
+  } catch {
+    feedback.textContent = 'No se pudo guardar la respuesta. Vuelve a intentarlo.';
+    card.querySelectorAll('.quote-response-actions button').forEach(item => { item.disabled = false; });
+  }
+});
 profileModal.querySelectorAll('[data-account-tab]').forEach(tab => tab.addEventListener('click', () => {
   profileModal.querySelectorAll('[data-account-tab]').forEach(item => item.classList.toggle('active', item === tab));
   const showOrders = tab.dataset.accountTab === 'orders';
