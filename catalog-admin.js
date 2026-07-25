@@ -72,6 +72,15 @@ const money = value => Number(value).toLocaleString('es-ES', {
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[character]);
+const downloadCsv = (filename, rows) => {
+  const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
 
 const productImage = reference => {
   const card = [...document.querySelectorAll('.product-card, article')].find(item =>
@@ -148,7 +157,7 @@ const injectAdminInterface = () => {
     .admin-product input[type="number"]{width:100%;min-height:44px;border:1px solid #cfc9c1;padding:8px 11px}
     .admin-colors,.admin-folders{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:15px;padding-top:15px;border-top:1px solid #e4dfd7}.admin-folders::before{content:'Secciones web';width:100%;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
     .catalog-admin-feedback{min-height:20px;font-weight:700}.save-catalog{width:100%}
-    .admin-data-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.admin-stat{padding:20px;background:#f7f4ef;border:1px solid #ddd5cb}.admin-stat strong{display:block;font-size:30px}.admin-table{width:100%;border-collapse:collapse;margin:18px 0}.admin-table th,.admin-table td{text-align:left;padding:10px;border-bottom:1px solid #ddd5cb;font-size:13px;vertical-align:top}.admin-table th{font-weight:900}.admin-table select{min-height:38px;border:1px solid #cfc9c1;background:#fff;padding:7px}.admin-order-detail{margin-top:8px}.admin-order-detail summary{font-weight:800;cursor:pointer}.admin-order-detail ul{padding-left:18px;line-height:1.6}.admin-order-response{margin:8px 0 0;padding:7px 9px;background:#eef5ec;border-radius:6px}.admin-orders-list h3,.admin-clients-list h3,.admin-analytics-view h3{font-size:28px;margin:25px 0 10px}
+    .admin-data-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.admin-stat{padding:20px;background:#f7f4ef;border:1px solid #ddd5cb}.admin-stat strong{display:block;font-size:30px}.admin-table{width:100%;border-collapse:collapse;margin:18px 0}.admin-table th,.admin-table td{text-align:left;padding:10px;border-bottom:1px solid #ddd5cb;font-size:13px;vertical-align:top}.admin-table th{font-weight:900}.admin-table select{min-height:38px;border:1px solid #cfc9c1;background:#fff;padding:7px}.admin-order-detail{margin-top:8px}.admin-order-detail summary{font-weight:800;cursor:pointer}.admin-order-detail ul{padding-left:18px;line-height:1.6}.admin-order-response{margin:8px 0 0;padding:7px 9px;background:#eef5ec;border-radius:6px}.admin-orders-list h3,.admin-clients-list h3,.admin-analytics-view h3{font-size:28px;margin:25px 0 10px}.admin-export{margin:0 8px 8px 0}
     .admin-image-viewer{position:fixed;inset:0;z-index:250;background:#000d;display:grid;place-items:center;padding:30px}.admin-image-viewer[hidden]{display:none}.admin-image-viewer img{display:block;max-width:92vw;max-height:90vh;object-fit:contain;background:#fff}.admin-image-viewer button{position:fixed;right:25px;top:20px;width:46px;height:46px;border:0;border-radius:50%;background:#fff;font-size:30px;cursor:pointer}
     @media(max-width:700px){.catalog-admin-card{padding:45px 20px 28px}.admin-new-grid{grid-template-columns:1fr}.admin-product-head{grid-template-columns:1fr}.admin-colors,.admin-folders{display:grid;grid-template-columns:1fr 1fr}.admin-tabs{overflow:auto}.admin-tabs button{white-space:nowrap}.admin-data-grid{grid-template-columns:1fr}.admin-table{display:block;overflow:auto}}
   `;
@@ -268,7 +277,7 @@ const injectAdminInterface = () => {
       if (!data) throw new Error('Cargando conexión segura…');
       const statuses = ['Recibido', 'Revisando', 'Presupuesto enviado', 'Presupuesto aceptado', 'Presupuesto rechazado', 'Pagado', 'Preparando', 'Enviado', 'Cancelado'];
       const orderTotal = data.orders.reduce((total, order) => total + Number(order.subtotal || 0), 0);
-      ordersBox.innerHTML = `<h3>Pedidos recibidos</h3><div class="admin-data-grid"><div class="admin-stat"><strong>${data.orders.length}</strong>pedidos</div><div class="admin-stat"><strong>${money(orderTotal)}</strong>solicitado sin IVA</div><div class="admin-stat"><strong>${data.orders.filter(order => !['Enviado', 'Cancelado'].includes(order.status)).length}</strong>pendientes</div></div>${data.orders.length ? `<table class="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Importe</th><th>Estado</th></tr></thead><tbody>${data.orders.map(order => `<tr><td><strong>${escapeHtml(order.id)}</strong><br>${order.items?.length || 0} líneas<details class="admin-order-detail"><summary>Ver productos</summary><ul>${(order.items || []).map(item => `<li>${escapeHtml(item.reference)} · ${escapeHtml(item.color)} · ${Number(item.quantity || 0)} uds.</li>`).join('')}</ul></details></td><td>${escapeHtml(order.customer?.company || order.customerEmail)}<br>${escapeHtml(order.customer?.contact || '')}<br>${escapeHtml(order.customer?.phone || '')}</td><td>${money(order.subtotal || 0)} sin IVA</td><td><select data-order-status="${escapeHtml(order.id)}" aria-label="Estado de ${escapeHtml(order.id)}">${statuses.map(status => `<option ${status === (order.status || 'Recibido') ? 'selected' : ''}>${status}</option>`).join('')}</select>${order.quoteResponse ? `<p class="admin-order-response"><strong>Cliente:</strong> ${order.quoteResponse.accepted ? 'Aceptado' : 'Rechazado'}</p>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay pedidos online.</p>'}`;
+      ordersBox.innerHTML = `<h3>Pedidos recibidos</h3><button class="button light admin-export export-orders" type="button">Descargar pedidos CSV</button><div class="admin-data-grid"><div class="admin-stat"><strong>${data.orders.length}</strong>pedidos</div><div class="admin-stat"><strong>${money(orderTotal)}</strong>solicitado sin IVA</div><div class="admin-stat"><strong>${data.orders.filter(order => !['Enviado', 'Cancelado'].includes(order.status)).length}</strong>pendientes</div></div>${data.orders.length ? `<table class="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Importe</th><th>Estado</th></tr></thead><tbody>${data.orders.map(order => `<tr><td><strong>${escapeHtml(order.id)}</strong><br>${order.items?.length || 0} líneas<details class="admin-order-detail"><summary>Ver productos</summary><ul>${(order.items || []).map(item => `<li>${escapeHtml(item.reference)} · ${escapeHtml(item.color)} · ${Number(item.quantity || 0)} uds.</li>`).join('')}</ul></details></td><td>${escapeHtml(order.customer?.company || order.customerEmail)}<br>${escapeHtml(order.customer?.contact || '')}<br>${escapeHtml(order.customer?.phone || '')}</td><td>${money(order.subtotal || 0)} sin IVA</td><td><select data-order-status="${escapeHtml(order.id)}" aria-label="Estado de ${escapeHtml(order.id)}">${statuses.map(status => `<option ${status === (order.status || 'Recibido') ? 'selected' : ''}>${status}</option>`).join('')}</select>${order.quoteResponse ? `<p class="admin-order-response"><strong>Cliente:</strong> ${order.quoteResponse.accepted ? 'Aceptado' : 'Rechazado'}</p>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay pedidos online.</p>'}`;
       ordersBox._orders = data.orders;
       ordersBox.querySelectorAll('tbody tr').forEach((row, index) => {
         const order = data.orders[index];
@@ -280,7 +289,8 @@ const injectAdminInterface = () => {
         button.textContent = 'Preparar presupuesto';
         row.cells[0]?.append(document.createElement('br'), button);
       });
-      clientsBox.innerHTML = `<h3>Fichas de clientes</h3>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Datos fiscales</th></tr></thead><tbody>${data.users.map(client => `<tr><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}</td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}</td><td>${escapeHtml(client.taxId)}<br>${escapeHtml([client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay fichas de clientes guardadas.</p>'}`;
+      clientsBox.innerHTML = `<h3>Fichas de clientes</h3><button class="button light admin-export export-clients" type="button">Descargar clientes CSV</button>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Datos fiscales</th></tr></thead><tbody>${data.users.map(client => `<tr><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}</td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}</td><td>${escapeHtml(client.taxId)}<br>${escapeHtml([client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay fichas de clientes guardadas.</p>'}`;
+      clientsBox._clients = data.users;
       const productViews = data.events.filter(event => event.type === 'product_view');
       const cartAdds = data.events.filter(event => event.type === 'add_to_cart');
       const searches = data.events.filter(event => event.type === 'search');
@@ -310,6 +320,20 @@ const injectAdminInterface = () => {
     }
   });
   modal.querySelector('.admin-orders-list').addEventListener('click', event => {
+    if (event.target.closest('.export-orders')) {
+      const rows = [['Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono', 'Subtotal sin IVA', 'Estado']];
+      (event.currentTarget._orders || []).forEach(order => rows.push([
+        order.id,
+        order.createdAt?.toDate?.().toLocaleDateString('es-ES') || '',
+        order.customer?.company || '',
+        order.customerEmail || order.customer?.email || '',
+        order.customer?.phone || '',
+        Number(order.subtotal || 0).toFixed(2),
+        order.status || 'Recibido'
+      ]));
+      downloadCsv(`pedidos-trendy-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+      return;
+    }
     const button = event.target.closest('.prepare-quote');
     if (!button) return;
     const order = event.currentTarget._orders?.find(item => item.id === button.dataset.orderId);
@@ -329,6 +353,15 @@ const injectAdminInterface = () => {
     const frame = modal.querySelector('.admin-budget-frame');
     frame.src = `/presupuesto.html?pedido=${encodeURIComponent(payload)}`;
     frame.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  modal.querySelector('.admin-clients-list').addEventListener('click', event => {
+    if (!event.target.closest('.export-clients')) return;
+    const rows = [['Empresa', 'CIF / NIF', 'Contacto', 'Email', 'Teléfono', 'Dirección', 'CP', 'Ciudad', 'País']];
+    (event.currentTarget._clients || []).forEach(client => rows.push([
+      client.company || '', client.taxId || '', client.contact || '', client.email || '', client.phone || '',
+      client.address || '', client.postalCode || '', client.city || '', client.country || ''
+    ]));
+    downloadCsv(`clientes-trendy-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   });
   modal.querySelector('.save-catalog').addEventListener('click', async () => {
     const feedback = modal.querySelector('.catalog-admin-feedback');
