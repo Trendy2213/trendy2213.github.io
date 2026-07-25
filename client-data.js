@@ -98,7 +98,7 @@ const loadMyOrders = async () => {
       <div class="client-order-head">
         <div><strong>${escapeHtml(order.id)}</strong><br><small>${order.createdAt?.toDate?.().toLocaleDateString('es-ES') || 'Pedido enviado'}</small></div>
         <span class="client-order-status">${escapeHtml(order.status || 'Recibido')}</span>
-        <span class="client-order-total">${formatMoney(order.subtotal)} sin IVA</span>
+        <span class="client-order-total">${formatMoney(order.subtotal)} IVA no incluido</span>
       </div>
       <ul class="client-order-items">${(order.items || []).map(item => `<li>${escapeHtml(item.reference || item.ref)} · ${escapeHtml(item.color)} · ${Number(item.quantity || item.qty || 0)} uds.</li>`).join('')}</ul>
       ${order.quote ? `<div class="client-order-quote"><strong>Presupuesto ${escapeHtml(order.quote.number)}</strong><br>Total: <span class="client-order-total">${formatMoney(order.quote.total)}</span><br><small>${escapeHtml(order.quote.notes || 'Pendiente de aceptación y pago.')}</small>
