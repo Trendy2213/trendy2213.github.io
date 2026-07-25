@@ -326,7 +326,10 @@ const injectAdminInterface = () => {
         button.textContent = 'Preparar presupuesto';
         row.cells[0]?.append(document.createElement('br'), button);
       });
-      clientsBox.innerHTML = `<h3>Fichas de clientes</h3><button class="button light admin-export export-clients" type="button">Descargar clientes CSV</button>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Datos fiscales</th></tr></thead><tbody>${data.users.map(client => `<tr><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}</td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}</td><td>${escapeHtml(client.taxId)}<br>${escapeHtml([client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay fichas de clientes guardadas.</p>'}`;
+      clientsBox.innerHTML = `<h3>Fichas de clientes</h3><button class="button light admin-export export-clients" type="button">Descargar clientes CSV</button>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Datos fiscales</th><th>Acceso</th></tr></thead><tbody>${data.users.map(client => {
+        const status = client.approvalStatus || 'pending';
+        return `<tr data-client-id="${escapeHtml(client.id)}"><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}</td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}</td><td>${escapeHtml(client.taxId)}<br>${escapeHtml([client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td><td><span class="client-access-status">${status === 'approved' ? 'Aprobado' : status === 'rejected' ? 'Rechazado' : 'Pendiente'}</span><br><select class="client-approval" data-client-id="${escapeHtml(client.id)}" data-previous="${status}" aria-label="Acceso de ${escapeHtml(client.company || client.email)}"><option value="pending" ${status === 'pending' ? 'selected' : ''}>Pendiente</option><option value="approved" ${status === 'approved' ? 'selected' : ''}>Aprobado</option><option value="rejected" ${status === 'rejected' ? 'selected' : ''}>Rechazado</option></select></td></tr>`;
+      }).join('')}</tbody></table>` : '<p>Todavía no hay fichas de clientes guardadas.</p>'}`;
       clientsBox._clients = data.users;
       const productViews = data.events.filter(event => event.type === 'product_view');
       const cartAdds = data.events.filter(event => event.type === 'add_to_cart');
@@ -399,6 +402,23 @@ const injectAdminInterface = () => {
       client.address || '', client.postalCode || '', client.city || '', client.country || ''
     ]));
     downloadCsv(`clientes-trendy-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  });
+  modal.querySelector('.admin-clients-list').addEventListener('change', async event => {
+    const select = event.target.closest('.client-approval');
+    if (!select) return;
+    const previous = select.dataset.previous || 'pending';
+    select.disabled = true;
+    try {
+      await window.TrendyData.updateClient(select.dataset.clientId, { approvalStatus: select.value });
+      select.dataset.previous = select.value;
+      const status = select.closest('td')?.querySelector('.client-access-status');
+      if (status) status.textContent = select.value === 'approved' ? 'Aprobado' : select.value === 'rejected' ? 'Rechazado' : 'Pendiente';
+    } catch {
+      select.value = previous;
+      alert('No se pudo actualizar el acceso del cliente.');
+    } finally {
+      select.disabled = false;
+    }
   });
   modal.querySelector('.save-catalog').addEventListener('click', async () => {
     const feedback = modal.querySelector('.catalog-admin-feedback');
