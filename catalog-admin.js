@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
 import {
+  collection,
   doc,
   getFirestore,
   onSnapshot,
@@ -32,8 +33,10 @@ const defaultProduct = () => ({
 const defaults = Object.fromEntries(BASE_REFERENCES.map(reference => [reference, defaultProduct()]));
 
 let catalog = structuredClone(defaults);
+let productImages = {};
 let currentEmail = '';
 let unsubscribe = null;
+let unsubscribeImages = null;
 let resolveReady;
 const ready = new Promise(resolve => { resolveReady = resolve; });
 
@@ -51,7 +54,7 @@ const mergeCatalog = remote => {
     price: Number.isFinite(Number(saved.price)) && saved.price !== '' ? Number(saved.price) : null,
     name: saved.name || '',
     measures: saved.measures || '',
-    image: saved.image || '',
+    image: productImages[reference] || saved.image || '',
     colors: Object.fromEntries(COLORS.map(color => [color, saved.colors?.[color] !== false])),
     folders: Object.fromEntries(FOLDERS.map(folder => [folder, saved.folders?.[folder] ?? base.folders[folder]]))
   }];
@@ -80,6 +83,27 @@ const downloadCsv = (filename, rows) => {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+};
+const prepareProductImage = async (file, reference) => {
+  if (!file) return '';
+  if (!file.type.startsWith('image/')) throw new Error('Selecciona un archivo de imagen.');
+  if (file.size > 8 * 1024 * 1024) throw new Error('La imagen supera el máximo de 8 MB.');
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext('2d', { alpha: false }).drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  let dataUrl = canvas.toDataURL('image/webp', 0.84);
+  if (dataUrl.length > 850000) dataUrl = canvas.toDataURL('image/jpeg', 0.76);
+  if (dataUrl.length > 900000) throw new Error('La fotografía sigue siendo demasiado pesada. Reduce su tamaño e inténtalo de nuevo.');
+  await setDoc(doc(db, 'productImages', reference), {
+    dataUrl,
+    updatedAt: new Date().toISOString()
+  });
+  productImages[reference] = dataUrl;
+  return dataUrl;
 };
 
 const productImage = reference => {
@@ -121,7 +145,8 @@ const injectAdminInterface = () => {
             <label>Referencia<input name="newReference" placeholder="Ej. MC960"></label>
             <label>Nombre<input name="newName" placeholder="Ej. Bolso shopper"></label>
             <label>Medidas<input name="newMeasures" placeholder="Ej. 35 × 24 × 12 cm"></label>
-            <label>Imagen (enlace)<input name="newImage" type="url" placeholder="https://…"></label>
+            <label>Imagen desde el ordenador<input name="newImageFile" type="file" accept="image/jpeg,image/png,image/webp"></label>
+            <label style="grid-column:1/-1">O imagen mediante enlace<input name="newImage" type="url" placeholder="https://…"></label>
           </div>
           <button class="button dark add-product" type="button">Crear producto</button>
           <p class="new-product-feedback" role="status"></p>
@@ -188,7 +213,8 @@ const injectAdminInterface = () => {
         <div class="admin-new-grid">
           <label>Nombre<input class="admin-name" value="${escapeHtml(item.name)}" placeholder="Nombre comercial"></label>
           <label>Medidas<input class="admin-measures" value="${escapeHtml(item.measures)}" placeholder="Ej. 35 × 24 × 12 cm"></label>
-          <label style="grid-column:1/-1">Imagen (enlace)<input class="admin-image" type="url" value="${escapeHtml(item.image)}" placeholder="https://…"></label>
+          <label>Subir nueva fotografía<input class="admin-image-file" type="file" accept="image/jpeg,image/png,image/webp"></label>
+          <label>O conservar/pegar enlace<input class="admin-image" type="url" value="${escapeHtml(item.image)}" placeholder="https://…"></label>
         </div>
         <div class="admin-colors">${COLORS.map(color => `<label><input type="checkbox" data-color="${color}" ${item.colors[color] ? 'checked' : ''}> ${color}</label>`).join('')}</div>
         <div class="admin-folders">${FOLDERS.map(folder => `<label><input type="checkbox" data-folder="${folder}" ${item.folders[folder] ? 'checked' : ''}> ${folder}</label>`).join('')}</div>
@@ -202,9 +228,10 @@ const injectAdminInterface = () => {
       });
     }
   };
-  modal.querySelector('.add-product').addEventListener('click', () => {
+  modal.querySelector('.add-product').addEventListener('click', async event => {
     const reference = modal.querySelector('[name="newReference"]').value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
     const feedback = modal.querySelector('.new-product-feedback');
+    const addButton = event.currentTarget;
     if (!reference) {
       feedback.textContent = 'Escribe una referencia válida.';
       return;
@@ -213,15 +240,25 @@ const injectAdminInterface = () => {
       feedback.textContent = 'Esta referencia ya existe.';
       return;
     }
-    catalog[reference] = {
-      ...defaultProduct(),
-      name: modal.querySelector('[name="newName"]').value.trim(),
-      measures: modal.querySelector('[name="newMeasures"]').value.trim(),
-      image: modal.querySelector('[name="newImage"]').value.trim()
-    };
-    references.push(reference);
-    renderForm();
-    feedback.textContent = `${reference} creado. Revisa sus datos y pulsa Guardar cambios.`;
+    addButton.disabled = true;
+    feedback.textContent = 'Preparando producto…';
+    try {
+      const file = modal.querySelector('[name="newImageFile"]').files[0];
+      const uploadedImage = await prepareProductImage(file, reference);
+      catalog[reference] = {
+        ...defaultProduct(),
+        name: modal.querySelector('[name="newName"]').value.trim(),
+        measures: modal.querySelector('[name="newMeasures"]').value.trim(),
+        image: uploadedImage || modal.querySelector('[name="newImage"]').value.trim()
+      };
+      references.push(reference);
+      renderForm();
+      feedback.textContent = `${reference} creado. Revisa sus datos y pulsa Guardar cambios.`;
+    } catch (error) {
+      feedback.textContent = error.message || 'No se pudo subir la fotografía.';
+    } finally {
+      addButton.disabled = false;
+    }
   });
 
   modal.querySelector('.admin-search').addEventListener('input', event => {
@@ -367,22 +404,26 @@ const injectAdminInterface = () => {
     const feedback = modal.querySelector('.catalog-admin-feedback');
     const saveButton = modal.querySelector('.save-catalog');
     const next = {};
-    modal.querySelectorAll('.admin-product').forEach(section => {
-      const reference = section.dataset.reference;
-      const rawPrice = section.querySelector('.admin-price').value.trim();
-      next[reference] = {
-        active: section.querySelector('.admin-active').checked,
-        price: rawPrice === '' ? null : Math.max(0, Number(rawPrice)),
-        name: section.querySelector('.admin-name').value.trim(),
-        measures: section.querySelector('.admin-measures').value.trim(),
-        image: section.querySelector('.admin-image').value.trim(),
-        colors: Object.fromEntries([...section.querySelectorAll('[data-color]')].map(input => [input.dataset.color, input.checked])),
-        folders: Object.fromEntries([...section.querySelectorAll('[data-folder]')].map(input => [input.dataset.folder, input.checked]))
-      };
-    });
     saveButton.disabled = true;
     feedback.textContent = 'Guardando…';
     try {
+      for (const section of modal.querySelectorAll('.admin-product')) {
+        const reference = section.dataset.reference;
+        const rawPrice = section.querySelector('.admin-price').value.trim();
+        const imageFile = section.querySelector('.admin-image-file').files[0];
+        const uploadedImage = imageFile ? await prepareProductImage(imageFile, reference) : '';
+        next[reference] = {
+          active: section.querySelector('.admin-active').checked,
+          price: rawPrice === '' ? null : Math.max(0, Number(rawPrice)),
+          name: section.querySelector('.admin-name').value.trim(),
+          measures: section.querySelector('.admin-measures').value.trim(),
+          image: uploadedImage ? '' : section.querySelector('.admin-image').value.trim().startsWith('data:')
+            ? ''
+            : section.querySelector('.admin-image').value.trim(),
+          colors: Object.fromEntries([...section.querySelectorAll('[data-color]')].map(input => [input.dataset.color, input.checked])),
+          folders: Object.fromEntries([...section.querySelectorAll('[data-folder]')].map(input => [input.dataset.folder, input.checked]))
+        };
+      }
       await setDoc(settingsRef, { products: next, updatedAt: new Date().toISOString() }, { merge: true });
       catalog = mergeCatalog(next);
       emitCatalog();
@@ -406,8 +447,11 @@ injectAdminInterface();
 const handleAuthState = detail => {
   currentEmail = (detail?.email || '').toLowerCase();
   unsubscribe?.();
+  unsubscribeImages?.();
   unsubscribe = null;
+  unsubscribeImages = null;
   if (!detail?.authenticated) {
+    productImages = {};
     catalog = structuredClone(defaults);
     emitCatalog();
     resolveReady?.(catalog);
@@ -425,6 +469,13 @@ const handleAuthState = detail => {
     emitCatalog();
     resolveReady?.(catalog);
     resolveReady = null;
+  });
+  unsubscribeImages = onSnapshot(collection(db, 'productImages'), snapshot => {
+    productImages = Object.fromEntries(snapshot.docs
+      .map(item => [item.id, item.data()?.dataUrl || ''])
+      .filter(([, image]) => image));
+    catalog = mergeCatalog(catalog);
+    emitCatalog();
   });
 };
 
