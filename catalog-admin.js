@@ -69,6 +69,9 @@ const money = value => Number(value).toLocaleString('es-ES', {
   currency: 'EUR',
   minimumFractionDigits: 2
 });
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+})[character]);
 
 const productImage = reference => {
   const card = [...document.querySelectorAll('.product-card, article')].find(item =>
@@ -166,20 +169,21 @@ const injectAdminInterface = () => {
     modal.querySelector('.catalog-admin-form').innerHTML = references.map(reference => {
       const item = catalog[reference];
       const image = productImage(reference);
-      return `<section class="admin-product" data-reference="${reference}">
+      return `<section class="admin-product" data-reference="${escapeHtml(reference)}">
         <div class="admin-product-head">
           <label><input class="admin-active" type="checkbox" ${item.active ? 'checked' : ''}> Disponible</label>
-          ${(item.image || image) ? `<img class="admin-product-photo" src="${item.image || image}" alt="${reference}">` : ''}
-          <strong>${reference}</strong>
+          ${(item.image || image) ? `<img class="admin-product-photo" src="${escapeHtml(item.image || image)}" alt="${escapeHtml(reference)}">` : ''}
+          <strong>${escapeHtml(reference)}</strong>
           <label>Precio sin IVA (€)<input class="admin-price" type="number" min="0" step="0.01" value="${item.price ?? ''}" placeholder="0,00"></label>
         </div>
         <div class="admin-new-grid">
-          <label>Nombre<input class="admin-name" value="${item.name || ''}" placeholder="Nombre comercial"></label>
-          <label>Medidas<input class="admin-measures" value="${item.measures || ''}" placeholder="Ej. 35 × 24 × 12 cm"></label>
-          <label style="grid-column:1/-1">Imagen (enlace)<input class="admin-image" type="url" value="${item.image || ''}" placeholder="https://…"></label>
+          <label>Nombre<input class="admin-name" value="${escapeHtml(item.name)}" placeholder="Nombre comercial"></label>
+          <label>Medidas<input class="admin-measures" value="${escapeHtml(item.measures)}" placeholder="Ej. 35 × 24 × 12 cm"></label>
+          <label style="grid-column:1/-1">Imagen (enlace)<input class="admin-image" type="url" value="${escapeHtml(item.image)}" placeholder="https://…"></label>
         </div>
         <div class="admin-colors">${COLORS.map(color => `<label><input type="checkbox" data-color="${color}" ${item.colors[color] ? 'checked' : ''}> ${color}</label>`).join('')}</div>
         <div class="admin-folders">${FOLDERS.map(folder => `<label><input type="checkbox" data-folder="${folder}" ${item.folders[folder] ? 'checked' : ''}> ${folder}</label>`).join('')}</div>
+        ${BASE_REFERENCES.includes(reference) ? '' : '<button class="button light archive-product" type="button">Archivar producto</button>'}
       </section>`;
     }).join('');
     const searchValue = modal.querySelector('.admin-search').value.trim().toUpperCase();
@@ -218,6 +222,17 @@ const injectAdminInterface = () => {
     });
   });
   modal.querySelector('.catalog-admin-form').addEventListener('click', event => {
+    const archiveButton = event.target.closest('.archive-product');
+    if (archiveButton) {
+      const section = archiveButton.closest('.admin-product');
+      const reference = section.dataset.reference;
+      if (!confirm(`¿Archivar ${reference}? Dejará de aparecer en la web.`)) return;
+      delete catalog[reference];
+      references = references.filter(item => item !== reference);
+      renderForm();
+      modal.querySelector('.catalog-admin-feedback').textContent = `${reference} archivado. Pulsa Guardar cambios para publicarlo.`;
+      return;
+    }
     const photo = event.target.closest('.admin-product-photo');
     if (!photo) return;
     imageViewer.querySelector('img').src = photo.src;
@@ -244,9 +259,6 @@ const injectAdminInterface = () => {
     if (['quotes', 'clients', 'analytics'].includes(tab.dataset.adminTab)) loadAdminData();
   }));
 
-  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  })[character]);
   const loadAdminData = async () => {
     const ordersBox = modal.querySelector('.admin-orders-list');
     const clientsBox = modal.querySelector('.admin-clients-list');
@@ -257,6 +269,17 @@ const injectAdminInterface = () => {
       const statuses = ['Recibido', 'Revisando', 'Presupuesto enviado', 'Pagado', 'Preparando', 'Enviado', 'Cancelado'];
       const orderTotal = data.orders.reduce((total, order) => total + Number(order.subtotal || 0), 0);
       ordersBox.innerHTML = `<h3>Pedidos recibidos</h3><div class="admin-data-grid"><div class="admin-stat"><strong>${data.orders.length}</strong>pedidos</div><div class="admin-stat"><strong>${money(orderTotal)}</strong>solicitado sin IVA</div><div class="admin-stat"><strong>${data.orders.filter(order => !['Enviado', 'Cancelado'].includes(order.status)).length}</strong>pendientes</div></div>${data.orders.length ? `<table class="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Importe</th><th>Estado</th></tr></thead><tbody>${data.orders.map(order => `<tr><td><strong>${escapeHtml(order.id)}</strong><br>${order.items?.length || 0} líneas<details class="admin-order-detail"><summary>Ver productos</summary><ul>${(order.items || []).map(item => `<li>${escapeHtml(item.reference)} · ${escapeHtml(item.color)} · ${Number(item.quantity || 0)} uds.</li>`).join('')}</ul></details></td><td>${escapeHtml(order.customer?.company || order.customerEmail)}<br>${escapeHtml(order.customer?.contact || '')}<br>${escapeHtml(order.customer?.phone || '')}</td><td>${money(order.subtotal || 0)} sin IVA</td><td><select data-order-status="${escapeHtml(order.id)}" aria-label="Estado de ${escapeHtml(order.id)}">${statuses.map(status => `<option ${status === (order.status || 'Recibido') ? 'selected' : ''}>${status}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay pedidos online.</p>'}`;
+      ordersBox._orders = data.orders;
+      ordersBox.querySelectorAll('tbody tr').forEach((row, index) => {
+        const order = data.orders[index];
+        if (!order) return;
+        const button = document.createElement('button');
+        button.className = 'button light prepare-quote';
+        button.type = 'button';
+        button.dataset.orderId = order.id;
+        button.textContent = 'Preparar presupuesto';
+        row.cells[0]?.append(document.createElement('br'), button);
+      });
       clientsBox.innerHTML = `<h3>Fichas de clientes</h3>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Datos fiscales</th></tr></thead><tbody>${data.users.map(client => `<tr><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}</td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}</td><td>${escapeHtml(client.taxId)}<br>${escapeHtml([client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay fichas de clientes guardadas.</p>'}`;
       const productViews = data.events.filter(event => event.type === 'product_view');
       const cartAdds = data.events.filter(event => event.type === 'add_to_cart');
@@ -285,6 +308,26 @@ const injectAdminInterface = () => {
     } finally {
       select.disabled = false;
     }
+  });
+  modal.querySelector('.admin-orders-list').addEventListener('click', event => {
+    const button = event.target.closest('.prepare-quote');
+    if (!button) return;
+    const order = event.currentTarget._orders?.find(item => item.id === button.dataset.orderId);
+    if (!order) return;
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
+      items: (order.items || []).map(item => ({
+        ref: item.reference || item.ref,
+        name: item.name || '',
+        color: item.color || '',
+        qty: item.quantity || item.qty || 1,
+        price: item.price ?? 0
+      })),
+      customer: order.customer || {},
+      customerEmail: order.customerEmail || ''
+    }))));
+    const frame = modal.querySelector('.admin-budget-frame');
+    frame.src = `/presupuesto.html?pedido=${encodeURIComponent(payload)}`;
+    frame.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   modal.querySelector('.save-catalog').addEventListener('click', async () => {
     const feedback = modal.querySelector('.catalog-admin-feedback');
