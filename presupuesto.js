@@ -20,12 +20,13 @@ try {
   if (encoded) order = JSON.parse(decodeURIComponent(escape(atob(encoded))));
 } catch { order = {items:[]}; }
 if (!order.items?.length) order.items = [{ref:'',name:'',color:'',qty:1}];
+document.querySelector('#customer').value = order.customer?.company || order.customer?.contact || order.customerEmail || '';
 
 const quoteId = `TB-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${String(Date.now()).slice(-4)}`;
 document.querySelector('#quote-number').value = quoteId;
 
 const render = () => {
-  lines.innerHTML = order.items.map((item,index)=>`<tr data-index="${index}"><td><select class="availability status"><option value="yes">Sí</option><option value="no">No hay</option></select></td><td><strong>${item.ref||'-'}</strong></td><td>${item.name||'-'}</td><td>${item.color||'-'}</td><td>${item.qty||1}</td><td><input class="served qty" type="number" min="0" value="${item.qty||1}"></td><td><input class="price money" type="number" min="0" step="0.01" value="0"></td><td class="subtotal">0,00 €</td></tr>`).join('');
+  lines.innerHTML = order.items.map((item,index)=>`<tr data-index="${index}"><td><select class="availability status"><option value="yes">Sí</option><option value="no">No hay</option></select></td><td><strong>${item.ref||'-'}</strong></td><td>${item.name||'-'}</td><td>${item.color||'-'}</td><td>${item.qty||1}</td><td><input class="served qty" type="number" min="0" value="${item.qty||1}"></td><td><input class="price money" type="number" min="0" step="0.01" value="${Number(item.price || 0)}"></td><td class="subtotal">0,00 €</td></tr>`).join('');
   calculate();
 };
 const calculate = () => {
