@@ -78,21 +78,49 @@
     colors: Object.fromEntries(COLORS.map(color => [color, true])),
     folders: {Novedades:true,Bolsos:true}
   };
+  const safeUrl = value => {
+    try {
+      const url = new URL(String(value), location.origin);
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch {
+      return '';
+    }
+  };
   const syncDynamicProducts = () => {
     const grid = document.querySelector('.product-grid');
     if (!grid) return;
     Object.entries(catalogSettings).forEach(([reference, settings]) => {
-      if (grid.querySelector(`[data-reference="${CSS.escape(reference)}"]`) || !settings.image) return;
+      const imageUrl = safeUrl(settings.image);
+      if (grid.querySelector(`[data-reference="${CSS.escape(reference)}"]`) || !imageUrl) return;
       const card = document.createElement('article');
       card.className = 'product';
       card.dataset.reference = reference;
       card.dataset.name = settings.name || reference;
       card.dataset.dynamic = 'true';
-      card.innerHTML = `<button class="product-image" type="button" aria-label="${settings.name || reference}">
-        <img src="${settings.image}" alt="${settings.name || reference}" loading="lazy">
-      </button><div class="product-copy"><p class="reference">${reference}</p>
-        <h3>${settings.name || reference}</h3><p class="measure">${settings.measures || ''}</p>
-        <p class="product-hint">Pulsa la foto para pedir</p></div>`;
+      const imageButton = document.createElement('button');
+      imageButton.className = 'product-image';
+      imageButton.type = 'button';
+      imageButton.setAttribute('aria-label', settings.name || reference);
+      const image = document.createElement('img');
+      image.src = imageUrl;
+      image.alt = settings.name || reference;
+      image.loading = 'lazy';
+      imageButton.append(image);
+      const productCopy = document.createElement('div');
+      productCopy.className = 'product-copy';
+      const ref = document.createElement('p');
+      ref.className = 'reference';
+      ref.textContent = reference;
+      const title = document.createElement('h3');
+      title.textContent = settings.name || reference;
+      const measures = document.createElement('p');
+      measures.className = 'measure';
+      measures.textContent = settings.measures || '';
+      const hint = document.createElement('p');
+      hint.className = 'product-hint';
+      hint.textContent = 'Pulsa la foto para pedir';
+      productCopy.append(ref, title, measures, hint);
+      card.append(imageButton, productCopy);
       grid.append(card);
     });
   };
