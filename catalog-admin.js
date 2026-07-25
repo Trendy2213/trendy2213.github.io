@@ -138,7 +138,7 @@ const injectAdminInterface = () => {
       <h2>Panel de administración</h2>
       <nav class="admin-tabs" aria-label="Secciones de administración"><button class="active" type="button" data-admin-tab="catalog">Productos y web</button><button type="button" data-admin-tab="quotes">Pedidos y presupuestos</button><button type="button" data-admin-tab="clients">Clientes</button><button type="button" data-admin-tab="analytics">Analítica</button></nav>
       <section class="admin-tab-panel" data-admin-panel="catalog">
-        <p class="admin-help">Gestiona precios, disponibilidad, colores y las secciones de la web. Los precios son profesionales sin IVA.</p>
+        <p class="admin-help">Gestiona precios, disponibilidad, colores y las secciones de la web. Los precios son profesionales IVA no incluido.</p>
         <details class="admin-new-product">
           <summary>+ Añadir un producto nuevo</summary>
           <div class="admin-new-grid">
@@ -208,7 +208,7 @@ const injectAdminInterface = () => {
           <label><input class="admin-active" type="checkbox" ${item.active ? 'checked' : ''}> Disponible</label>
           ${(item.image || image) ? `<img class="admin-product-photo" src="${escapeHtml(item.image || image)}" alt="${escapeHtml(reference)}">` : ''}
           <strong>${escapeHtml(reference)}</strong>
-          <label>Precio sin IVA (€)<input class="admin-price" type="number" min="0" step="0.01" value="${item.price ?? ''}" placeholder="0,00"></label>
+          <label>Precio IVA no incluido (€)<input class="admin-price" type="number" min="0" step="0.01" value="${item.price ?? ''}" placeholder="0,00"></label>
         </div>
         <div class="admin-new-grid">
           <label>Nombre<input class="admin-name" value="${escapeHtml(item.name)}" placeholder="Nombre comercial"></label>
@@ -314,7 +314,7 @@ const injectAdminInterface = () => {
       if (!data) throw new Error('Cargando conexión segura…');
       const statuses = ['Recibido', 'Revisando', 'Presupuesto enviado', 'Presupuesto aceptado', 'Presupuesto rechazado', 'Pagado', 'Preparando', 'Enviado', 'Cancelado'];
       const orderTotal = data.orders.reduce((total, order) => total + Number(order.subtotal || 0), 0);
-      ordersBox.innerHTML = `<h3>Pedidos recibidos</h3><button class="button light admin-export export-orders" type="button">Descargar pedidos CSV</button><div class="admin-data-grid"><div class="admin-stat"><strong>${data.orders.length}</strong>pedidos</div><div class="admin-stat"><strong>${money(orderTotal)}</strong>solicitado sin IVA</div><div class="admin-stat"><strong>${data.orders.filter(order => !['Enviado', 'Cancelado'].includes(order.status)).length}</strong>pendientes</div></div>${data.orders.length ? `<table class="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Importe</th><th>Estado</th></tr></thead><tbody>${data.orders.map(order => `<tr><td><strong>${escapeHtml(order.id)}</strong><br>${order.items?.length || 0} líneas<details class="admin-order-detail"><summary>Ver productos</summary><ul>${(order.items || []).map(item => `<li>${escapeHtml(item.reference)} · ${escapeHtml(item.color)} · ${Number(item.quantity || 0)} uds.</li>`).join('')}</ul></details></td><td>${escapeHtml(order.customer?.company || order.customerEmail)}<br>${escapeHtml(order.customer?.contact || '')}<br>${escapeHtml(order.customer?.phone || '')}</td><td>${money(order.subtotal || 0)} sin IVA</td><td><select data-order-status="${escapeHtml(order.id)}" aria-label="Estado de ${escapeHtml(order.id)}">${statuses.map(status => `<option ${status === (order.status || 'Recibido') ? 'selected' : ''}>${status}</option>`).join('')}</select>${order.quoteResponse ? `<p class="admin-order-response"><strong>Cliente:</strong> ${order.quoteResponse.accepted ? 'Aceptado' : 'Rechazado'}</p>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay pedidos online.</p>'}`;
+      ordersBox.innerHTML = `<h3>Pedidos recibidos</h3><button class="button light admin-export export-orders" type="button">Descargar pedidos CSV</button><div class="admin-data-grid"><div class="admin-stat"><strong>${data.orders.length}</strong>pedidos</div><div class="admin-stat"><strong>${money(orderTotal)}</strong>solicitado IVA no incluido</div><div class="admin-stat"><strong>${data.orders.filter(order => !['Enviado', 'Cancelado'].includes(order.status)).length}</strong>pendientes</div></div>${data.orders.length ? `<table class="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Importe</th><th>Estado</th></tr></thead><tbody>${data.orders.map(order => `<tr><td><strong>${escapeHtml(order.id)}</strong><br>${order.items?.length || 0} líneas<details class="admin-order-detail"><summary>Ver productos</summary><ul>${(order.items || []).map(item => `<li>${escapeHtml(item.reference)} · ${escapeHtml(item.color)} · ${Number(item.quantity || 0)} uds.</li>`).join('')}</ul></details></td><td>${escapeHtml(order.customer?.company || order.customerEmail)}<br>${escapeHtml(order.customer?.contact || '')}<br>${escapeHtml(order.customer?.phone || '')}</td><td>${money(order.subtotal || 0)} IVA no incluido</td><td><select data-order-status="${escapeHtml(order.id)}" aria-label="Estado de ${escapeHtml(order.id)}">${statuses.map(status => `<option ${status === (order.status || 'Recibido') ? 'selected' : ''}>${status}</option>`).join('')}</select>${order.quoteResponse ? `<p class="admin-order-response"><strong>Cliente:</strong> ${order.quoteResponse.accepted ? 'Aceptado' : 'Rechazado'}</p>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p>Todavía no hay pedidos online.</p>'}`;
       ordersBox._orders = data.orders;
       ordersBox.querySelectorAll('tbody tr').forEach((row, index) => {
         const order = data.orders[index];
@@ -361,7 +361,7 @@ const injectAdminInterface = () => {
   });
   modal.querySelector('.admin-orders-list').addEventListener('click', event => {
     if (event.target.closest('.export-orders')) {
-      const rows = [['Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono', 'Subtotal sin IVA', 'Estado']];
+      const rows = [['Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono', 'Subtotal IVA no incluido', 'Estado']];
       (event.currentTarget._orders || []).forEach(order => rows.push([
         order.id,
         order.createdAt?.toDate?.().toLocaleDateString('es-ES') || '',
