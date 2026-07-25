@@ -100,7 +100,8 @@ const loadMyOrders = async () => {
         <span class="client-order-status">${escapeHtml(order.status || 'Recibido')}</span>
         <span class="client-order-total">${formatMoney(order.subtotal)} sin IVA</span>
       </div>
-      <ul class="client-order-items">${(order.items || []).map(item => `<li>${escapeHtml(item.reference)} · ${escapeHtml(item.color)} · ${Number(item.quantity || 0)} uds.</li>`).join('')}</ul>
+      <ul class="client-order-items">${(order.items || []).map(item => `<li>${escapeHtml(item.reference || item.ref)} · ${escapeHtml(item.color)} · ${Number(item.quantity || item.qty || 0)} uds.</li>`).join('')}</ul>
+      ${order.quote ? `<div class="client-order-quote"><strong>Presupuesto ${escapeHtml(order.quote.number)}</strong><br>Total: <span class="client-order-total">${formatMoney(order.quote.total)}</span><br><small>${escapeHtml(order.quote.notes || 'Pendiente de aceptación y pago.')}</small></div>` : ''}
     </article>`).join('') : '<p>Todavía no has enviado ningún pedido.</p>';
   } catch {
     box.innerHTML = '<p>No se pudieron cargar los pedidos. Vuelve a intentarlo.</p>';
@@ -160,8 +161,15 @@ window.TrendyData = {
     if (!user) throw new Error('Debes iniciar sesión.');
     const profileSnapshot = await getDoc(doc(db, 'users', user.uid));
     const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
+    const normalizedItems = (order.items || []).map(item => ({
+      reference: item.reference || item.ref || '',
+      name: item.name || '',
+      color: item.color || '',
+      quantity: Number(item.quantity || item.qty || 0),
+      price: item.price == null ? null : Number(item.price)
+    }));
     await setDoc(doc(db, 'orders', order.id), {
-      ...order, customerUid: user.uid, customerEmail: user.email || '',
+      ...order, items: normalizedItems, customerUid: user.uid, customerEmail: user.email || '',
       customer: profile, status: 'Recibido', createdAt: serverTimestamp()
     });
     return order.id;
