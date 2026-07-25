@@ -2,7 +2,7 @@ import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebase
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
 import {
   addDoc, collection, doc, getDoc, getDocs, getFirestore, limit,
-  orderBy, query, serverTimestamp, setDoc
+  orderBy, query, serverTimestamp, setDoc, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 const config = {
@@ -27,6 +27,10 @@ profileModal.innerHTML = `<div class="modal-card client-profile-card">
   <button class="modal-close" type="button" aria-label="Cerrar">×</button>
   <p class="eyebrow">MI CUENTA PROFESIONAL</p><h2>Ficha de cliente</h2>
   <p>Estos datos se utilizarán para preparar pedidos y presupuestos.</p>
+  <nav class="client-account-tabs" aria-label="Mi cuenta">
+    <button class="active" type="button" data-account-tab="profile">Mis datos</button>
+    <button type="button" data-account-tab="orders">Mis pedidos</button>
+  </nav>
   <form class="client-profile-form">
     <label>Empresa o razón social<input name="company" required></label>
     <label>CIF / NIF<input name="taxId" required></label>
@@ -40,10 +44,11 @@ profileModal.innerHTML = `<div class="modal-card client-profile-card">
     <p class="profile-feedback wide" role="status"></p>
     <button class="button dark wide" type="submit">Guardar ficha</button>
   </form>
+  <section class="client-orders" hidden><p>Cargando pedidos…</p></section>
 </div>`;
 document.body.append(profileModal);
 const style = document.createElement('style');
-style.textContent = `.client-profile-card{display:block!important;width:min(720px,96vw)!important;padding:48px;max-height:94vh;overflow:auto}.client-profile-card h2{font-size:42px;margin:10px 0}.client-profile-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:24px}.client-profile-form label{display:grid;gap:7px;font-size:13px;font-weight:800}.client-profile-form input{width:100%;min-height:48px;border:1px solid #cfc9c1;padding:10px 12px}.client-profile-form .wide{grid-column:1/-1}.profile-feedback{min-height:18px}@media(max-width:700px){.client-profile-card{padding:50px 20px 28px}.client-profile-form{grid-template-columns:1fr}.client-profile-form .wide{grid-column:auto}}`;
+style.textContent = `.client-profile-card{display:block!important;width:min(820px,96vw)!important;padding:48px;max-height:94vh;overflow:auto}.client-profile-card h2{font-size:42px;margin:10px 0}.client-account-tabs{display:flex;gap:8px;margin:22px 0;border-bottom:1px solid #ddd5cb}.client-account-tabs button{border:0;background:none;padding:12px 15px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent}.client-account-tabs button.active{border-color:#171717}.client-profile-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:24px}.client-profile-form label{display:grid;gap:7px;font-size:13px;font-weight:800}.client-profile-form input{width:100%;min-height:48px;border:1px solid #cfc9c1;padding:10px 12px}.client-profile-form .wide{grid-column:1/-1}.profile-feedback{min-height:18px}.client-orders{display:grid;gap:12px}.client-order{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}.client-order-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.client-order-items{margin:12px 0 0;padding-left:18px;color:#555}.client-order-status{display:inline-flex;padding:6px 10px;background:#e9e0d2;font-size:12px;font-weight:900}.client-order-total{font-size:20px;font-weight:900}@media(max-width:700px){.client-profile-card{padding:50px 20px 28px}.client-profile-form{grid-template-columns:1fr}.client-profile-form .wide{grid-column:auto}.client-order-head{display:grid}}`;
 document.head.append(style);
 
 const form = profileModal.querySelector('form');
@@ -70,6 +75,44 @@ const openProfile = async () => {
   profileModal.hidden = false;
   document.body.style.overflow = 'hidden';
 };
+
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+})[character]);
+const formatMoney = value => Number(value || 0).toLocaleString('es-ES', {
+  style: 'currency', currency: 'EUR', minimumFractionDigits: 2
+});
+const loadMyOrders = async () => {
+  const box = profileModal.querySelector('.client-orders');
+  if (!user) return;
+  box.innerHTML = '<p>Cargando pedidos…</p>';
+  try {
+    const snapshot = await getDocs(query(
+      collection(db, 'orders'),
+      where('customerUid', '==', user.uid),
+      limit(100)
+    ));
+    const orders = snapshot.docs.map(item => ({ id: item.id, ...item.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    box.innerHTML = orders.length ? orders.map(order => `<article class="client-order">
+      <div class="client-order-head">
+        <div><strong>${escapeHtml(order.id)}</strong><br><small>${order.createdAt?.toDate?.().toLocaleDateString('es-ES') || 'Pedido enviado'}</small></div>
+        <span class="client-order-status">${escapeHtml(order.status || 'Recibido')}</span>
+        <span class="client-order-total">${formatMoney(order.subtotal)} sin IVA</span>
+      </div>
+      <ul class="client-order-items">${(order.items || []).map(item => `<li>${escapeHtml(item.reference)} · ${escapeHtml(item.color)} · ${Number(item.quantity || 0)} uds.</li>`).join('')}</ul>
+    </article>`).join('') : '<p>Todavía no has enviado ningún pedido.</p>';
+  } catch {
+    box.innerHTML = '<p>No se pudieron cargar los pedidos. Vuelve a intentarlo.</p>';
+  }
+};
+profileModal.querySelectorAll('[data-account-tab]').forEach(tab => tab.addEventListener('click', () => {
+  profileModal.querySelectorAll('[data-account-tab]').forEach(item => item.classList.toggle('active', item === tab));
+  const showOrders = tab.dataset.accountTab === 'orders';
+  form.hidden = showOrders;
+  profileModal.querySelector('.client-orders').hidden = !showOrders;
+  if (showOrders) loadMyOrders();
+}));
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -122,6 +165,15 @@ window.TrendyData = {
       customer: profile, status: 'Recibido', createdAt: serverTimestamp()
     });
     return order.id;
+  },
+  async getMyOrders() {
+    if (!user) throw new Error('Debes iniciar sesión.');
+    const snapshot = await getDocs(query(collection(db, 'orders'), where('customerUid', '==', user.uid), limit(100)));
+    return snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+  },
+  async updateOrder(orderId, changes) {
+    if (!user || user.email?.toLowerCase() !== ADMIN) throw new Error('No autorizado');
+    await updateDoc(doc(db, 'orders', orderId), { ...changes, updatedAt: serverTimestamp() });
   },
   async getAdminData() {
     if (!user || user.email?.toLowerCase() !== ADMIN) throw new Error('No autorizado');
