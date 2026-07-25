@@ -1,9 +1,12 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+import { doc, getFirestore, serverTimestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 const ADMIN = 'trendybag@hotmail.com';
 const config = {apiKey:'AIzaSyDqp23klSLZPgaeh_7uDfcBXhT1bgbsVU4',authDomain:'trendy-bag-a6218.firebaseapp.com',projectId:'trendy-bag-a6218',storageBucket:'trendy-bag-a6218.firebasestorage.app',messagingSenderId:'564876869679',appId:'1:564876869679:web:cd02d9c9e27b37945906da'};
-const auth = getAuth(initializeApp(config));
+const app = initializeApp(config);
+const auth = getAuth(app);
+const db = getFirestore(app);
 const login = document.querySelector('.login');
 const budgetLoginForm = login.querySelector('form');
 const budgetRemember = document.createElement('label');
@@ -53,13 +56,68 @@ const textQuote = () => {
   }).join('\n');
   return `TRENDY BAG · PRESUPUESTO ${number}\nCliente: ${customer}\n\n${itemLines}\n\nBase: ${document.querySelector('#base').textContent}\nIVA: ${document.querySelector('#vat-value').textContent}\nTOTAL: ${document.querySelector('#total').textContent}\n\n${document.querySelector('#notes').value||'Presupuesto sujeto a disponibilidad.'}`;
 };
+const quoteData = () => {
+  const items = [...lines.querySelectorAll('tr')].map((row, index) => {
+    const source = order.items[index] || {};
+    const available = row.querySelector('.availability').value === 'yes';
+    const quantity = available ? Number(row.querySelector('.served').value) || 0 : 0;
+    const unitPrice = Number(row.querySelector('.price').value) || 0;
+    return {
+      reference: source.ref || source.reference || '',
+      name: source.name || '',
+      color: source.color || '',
+      requestedQuantity: Number(source.qty || source.quantity || 1),
+      available,
+      quantity,
+      unitPrice,
+      subtotal: available ? quantity * unitPrice : 0
+    };
+  });
+  const base = items.reduce((total, item) => total + item.subtotal, 0) + (Number(document.querySelector('#shipping').value) || 0);
+  const vatPercent = Number(document.querySelector('#vat').value) || 0;
+  const vatAmount = base * vatPercent / 100;
+  return {
+    number: document.querySelector('#quote-number').value,
+    customer: document.querySelector('#customer').value,
+    items,
+    shipping: Number(document.querySelector('#shipping').value) || 0,
+    vatPercent,
+    base,
+    vatAmount,
+    total: base + vatAmount,
+    notes: document.querySelector('#notes').value,
+    text: textQuote()
+  };
+};
 
 render();
 quote.addEventListener('input',calculate);quote.addEventListener('change',calculate);
 document.querySelector('#print').onclick=()=>window.print();
 document.querySelector('#copy').onclick=async()=>{await navigator.clipboard.writeText(textQuote());document.querySelector('.quote-feedback').textContent='Presupuesto copiado.'};
-document.querySelector('#send').onclick=()=>window.open(`https://wa.me/?text=${encodeURIComponent(textQuote())}`,'_blank');
-document.querySelector('#save').onclick=()=>{localStorage.setItem(`trendy-quote-${document.querySelector('#quote-number').value}`,JSON.stringify({order,customer:document.querySelector('#customer').value,notes:document.querySelector('#notes').value,html:lines.innerHTML,shipping:document.querySelector('#shipping').value,vat:document.querySelector('#vat').value}));document.querySelector('.quote-feedback').textContent='Borrador guardado en este ordenador.'};
+document.querySelector('#send').onclick=()=>{
+  const phone = String(order.customer?.phone || '').replace(/\D/g, '');
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(textQuote())}`,'_blank');
+};
+document.querySelector('#save').onclick=async()=>{
+  const feedback = document.querySelector('.quote-feedback');
+  const data = quoteData();
+  localStorage.setItem(`trendy-quote-${data.number}`, JSON.stringify({order, quote:data}));
+  if (!order.id) {
+    feedback.textContent='Borrador guardado en este ordenador.';
+    return;
+  }
+  feedback.textContent='Guardando presupuesto…';
+  try {
+    await updateDoc(doc(db, 'orders', order.id), {
+      quote: data,
+      status: 'Presupuesto enviado',
+      updatedAt: serverTimestamp()
+    });
+    feedback.textContent='Presupuesto guardado en la cuenta del cliente.';
+  } catch {
+    feedback.textContent='No se pudo guardar online. Se ha conservado el borrador en este ordenador.';
+  }
+};
 document.querySelector('#logout').onclick=()=>signOut(auth);
 document.querySelector('.login form').onsubmit=async event=>{event.preventDefault();const f=event.currentTarget;const feedback=f.querySelector('.feedback');try{await setPersistence(auth,f.remember.checked?browserLocalPersistence:browserSessionPersistence);const result=await signInWithEmailAndPassword(auth,f.email.value.trim(),f.password.value);if(result.user.email.toLowerCase()!==ADMIN){await signOut(auth);throw new Error('Cuenta no autorizada.')}feedback.textContent='';}catch(e){feedback.textContent=e.message==='Cuenta no autorizada.'?e.message:'Correo o contraseña incorrectos.'}};
 onAuthStateChanged(auth,user=>{const allowed=user?.email?.toLowerCase()===ADMIN;login.hidden=allowed;quote.hidden=!allowed;document.querySelector('.admin-email').textContent=allowed?user.email:''});
