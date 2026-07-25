@@ -110,6 +110,7 @@
   };
   const safeImageUrl = value => {
     const raw = String(value || '').trim();
+    if (!raw) return '';
     if (/^data:image\/(?:webp|png|jpeg);base64,[a-z0-9+/=\s]+$/i.test(raw)) return raw;
     try {
       const url = new URL(raw, location.origin);
@@ -182,7 +183,7 @@
         card.querySelector('.measure')?.after(price);
       }
       price.hidden = !isRegisteredClient() || settings.price == null;
-      price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · sin IVA`;
+      price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · IVA no incluido`;
     });
     const results = document.querySelector('.catalog-results');
     if (results) results.textContent = `${visibleCount} producto${visibleCount === 1 ? '' : 's'}`;
@@ -455,7 +456,7 @@
       productModal.querySelector('h2').after(modalPrice);
     }
     modalPrice.hidden = !isRegisteredClient() || settings.price == null;
-    modalPrice.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · sin IVA`;
+    modalPrice.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · IVA no incluido`;
     productModal.querySelector('.quantity input').value = 1;
     productModal.querySelector('.error').textContent = '';
     productModal.querySelector('.modal-card').scrollTop = 0;
@@ -524,7 +525,7 @@
     saveCart();
     const lines = cartModal.querySelector('.cart-lines');
     lines.innerHTML = cart.length
-      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades${item.price == null ? '' : `<br><strong>${window.TrendyCatalog?.formatPrice?.(item.price * item.qty) || (item.price * item.qty).toFixed(2) + ' €'} sin IVA</strong>`}</div></div>`).join('')
+      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades${item.price == null ? '' : `<br><strong>${window.TrendyCatalog?.formatPrice?.(item.price * item.qty) || (item.price * item.qty).toFixed(2) + ' €'} IVA no incluido</strong>`}</div></div>`).join('')
       : `<p class="empty">${copy.empty}</p>`;
 
     lines.querySelectorAll('button').forEach(button => {
@@ -547,7 +548,7 @@
     }
     summary.hidden = !hasItems;
     summary.innerHTML = priced
-      ? `<span>Total sin IVA</span><br><strong>${window.TrendyCatalog?.formatPrice?.(subtotal) || subtotal.toFixed(2) + ' €'}</strong>${subtotal < MINIMUM_ORDER ? `<p class="minimum-warning">El pedido mínimo es de ${MINIMUM_ORDER.toFixed(2)} € sin IVA. Faltan ${(MINIMUM_ORDER - subtotal).toFixed(2)} €.</p>` : ''}`
+      ? `<span>Total IVA no incluido</span><br><strong>${window.TrendyCatalog?.formatPrice?.(subtotal) || subtotal.toFixed(2) + ' €'}</strong>${subtotal < MINIMUM_ORDER ? `<p class="minimum-warning">El pedido mínimo es de ${MINIMUM_ORDER.toFixed(2)} € IVA no incluido. Faltan ${(MINIMUM_ORDER - subtotal).toFixed(2)} €.</p>` : ''}`
       : '<p class="minimum-warning">Falta indicar el precio de algún producto. Trendy Bag debe completar los precios antes de enviar pedidos online.</p>';
     const canSend = hasItems && priced && subtotal >= MINIMUM_ORDER;
     whatsappLink.hidden = !hasItems;
@@ -714,7 +715,7 @@
         subtotal,
         minimumOrder: MINIMUM_ORDER
       });
-      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\nTotal sin IVA: ${subtotal.toFixed(2)} €`;
+      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\nTotal IVA no incluido: ${subtotal.toFixed(2)} €`;
       const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
       if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
       else window.location.href = whatsappUrl;
