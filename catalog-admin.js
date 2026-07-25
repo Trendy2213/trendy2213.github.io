@@ -315,6 +315,7 @@ const injectAdminInterface = () => {
     const order = event.currentTarget._orders?.find(item => item.id === button.dataset.orderId);
     if (!order) return;
     const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
+      id: order.id,
       items: (order.items || []).map(item => ({
         ref: item.reference || item.ref,
         name: item.name || '',
