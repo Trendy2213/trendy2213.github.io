@@ -534,3 +534,28 @@ window.TrendyCatalog = {
   isAdmin: () => currentEmail === ADMIN_EMAIL,
   formatPrice: money
 };
+
+
+const installCategoryNavigation = () => {
+  const nav = document.querySelector('.category-nav');
+  if (!nav || nav.dataset.organized === 'true') return;
+  nav.dataset.organized = 'true';
+  nav.innerHTML = '<a href="#catalogo" data-folder="Novedades">Novedades</a><a href="#catalogo" data-folder="Bolsos">Bolsos</a><a href="#catalogo" data-folder="Hombro">Hombro</a><a href="#catalogo" data-folder="Bandoleras">Bandoleras</a><a href="#catalogo" data-folder="Mochilas">Mochilas</a><a href="#catalogo" data-folder="Riñoneras">Riñoneras</a><a href="#catalogo" data-folder="Bolsos de rafia/capazos">Bolsos de rafia/capazos</a><a href="#catalogo" data-folder="Bolsos de hombre">Bolsos de hombre</a><details class="category-group"><summary>Viaje</summary><div class="category-subnav"><a href="#catalogo" data-folder="Viaje">Todo Viaje</a><a href="#catalogo" data-folder="Viaje / Maletas">Maletas</a><a href="#catalogo" data-folder="Viaje / Bolsas de viaje">Bolsas de viaje</a><a href="#catalogo" data-folder="Viaje / Mochilas de viaje">Mochilas de viaje</a><a href="#catalogo" data-folder="Viaje / Riñoneras">Riñoneras</a></div></details><details class="category-group"><summary>Monederos</summary><div class="category-subnav"><a href="#catalogo" data-folder="Monederos">Todos los monederos</a><a href="#catalogo" data-folder="Monederos / Monederos de mujer">Monederos de mujer</a><a href="#catalogo" data-folder="Monederos / Monederos de hombre">Monederos de hombre</a></div></details><details class="category-group"><summary>Cinturones</summary><div class="category-subnav"><a href="#catalogo" data-folder="Cinturones">Todos los cinturones</a><a href="#catalogo" data-folder="Cinturones / Cinturones de mujer">Cinturones de mujer</a><a href="#catalogo" data-folder="Cinturones / Cinturones de hombre">Cinturones de hombre</a></div></details><a href="#catalogo" data-folder="Complementos">Complementos</a><a href="#contacto">Contacto</a>';
+  const style = document.createElement('style');
+  style.textContent = '.category-nav{gap:22px!important;align-items:center}.category-nav>details{position:relative}.category-nav>details summary{padding:10px 0;cursor:pointer;list-style:none}.category-nav>details summary::-webkit-details-marker{display:none}.category-nav>details summary::after{content:"⌄";margin-left:5px}.category-subnav{position:absolute;left:-14px;top:36px;min-width:220px;padding:8px;background:#fff;border:1px solid #ded8d0;box-shadow:0 14px 30px #0002;display:grid;z-index:60}.category-subnav a{padding:10px 13px!important}.category-subnav a:hover{background:#f7f4ef}@media(max-width:800px){.category-nav>details{flex:0 0 auto}.category-subnav{position:fixed;left:16px;right:16px;top:auto;min-width:0}}';
+  document.head.append(style);
+  nav.addEventListener('click', async event => {
+    const link = event.target.closest('[data-folder]');
+    if (!link) return;
+    const folder = link.dataset.folder;
+    await window.TrendyCatalog?.whenReady?.();
+    document.querySelectorAll('.product').forEach(card => {
+      const settings = window.TrendyCatalog?.getProduct?.(card.dataset.reference);
+      card.hidden = settings?.active === false || settings?.folders?.[folder] === false;
+    });
+    nav.querySelectorAll('[data-folder]').forEach(item => item.classList.toggle('active', item === link));
+    nav.querySelectorAll('details').forEach(item => { item.open = false; });
+  });
+};
+
+installCategoryNavigation();
