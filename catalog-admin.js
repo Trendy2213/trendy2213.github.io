@@ -547,10 +547,11 @@ const installCategoryNavigation = () => {
   style.textContent = '.category-nav{gap:22px!important;align-items:center}.category-nav>details{position:relative}.category-nav>details summary{padding:10px 0;cursor:pointer;list-style:none}.category-nav>details summary::-webkit-details-marker{display:none}.category-nav a:hover,.category-nav summary:hover{border-bottom-color:transparent!important;text-decoration:none!important}.category-nav>details:hover>.category-subnav{display:grid!important}.category-subnav{position:absolute;left:-14px;top:calc(100% - 1px);min-width:220px;padding:0 8px 8px;background:#fff;border:1px solid #ded8d0;box-shadow:0 14px 30px #0002;display:grid;z-index:60}.category-subnav a{padding:10px 13px!important}.category-subnav a:hover{background:#f7f4ef}@media(max-width:800px){.category-nav>details{flex:0 0 auto}.category-subnav{position:absolute;left:-14px;right:auto;top:calc(100% - 1px);min-width:220px;max-width:calc(100vw - 32px)}}';
   document.head.append(style);
   nav.querySelectorAll('details').forEach(group => {
-    group.addEventListener('mouseenter', () => {
+    const openGroup = () => {
       nav.querySelectorAll('details').forEach(item => { item.open = item === group; });
-    });
-    group.addEventListener('mouseleave', () => { group.open = false; });
+    };
+    group.addEventListener('mouseenter', openGroup);
+    group.addEventListener('pointerenter', openGroup);
   });
   nav.addEventListener('click', async event => {
     const link = event.target.closest('[data-folder]');
