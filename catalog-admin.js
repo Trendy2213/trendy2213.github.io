@@ -21,7 +21,9 @@ const COLORS = ['Beige', 'Taupe', 'Azul marino', 'Amarillo', 'Marrón', 'Rojo', 
 const FOLDERS = [
   'Novedades',
   'Bolsos',
-  'Hombro',
+  'Bolsos de hombro',
+  'Bolsos de mano',
+  'Bolsos de piel',
   'Bandoleras',
   'Mochilas',
   'Riñoneras',
@@ -77,7 +79,7 @@ const mergeCatalog = remote => {
     measures: saved.measures || '',
     image: productImages[reference] || saved.image || '',
     colors: Object.fromEntries(COLORS.map(color => [color, saved.colors?.[color] !== false])),
-    folders: Object.fromEntries(FOLDERS.map(folder => [folder, saved.folders?.[folder] ?? base.folders[folder]]))
+    folders: Object.fromEntries(FOLDERS.map(folder => [folder, folder === 'Bolsos de hombro' ? (saved.folders?.[folder] ?? saved.folders?.Hombro ?? base.folders[folder]) : (saved.folders?.[folder] ?? base.folders[folder])]))
   }];
   }));
 };
@@ -540,10 +542,16 @@ const installCategoryNavigation = () => {
   const nav = document.querySelector('.category-nav');
   if (!nav || nav.dataset.organized === 'true') return;
   nav.dataset.organized = 'true';
-  nav.innerHTML = '<a href="#catalogo" data-folder="Novedades">Novedades</a><details class="category-group"><summary data-folder="Bolsos">Bolsos</summary><div class="category-subnav"><a href="#catalogo" data-folder="Hombro">Hombro</a><a href="#catalogo" data-folder="Bandoleras">Bandoleras</a><a href="#catalogo" data-folder="Mochilas">Mochilas</a><a href="#catalogo" data-folder="Riñoneras">Riñoneras</a><a href="#catalogo" data-folder="Bolsos de rafia/capazos">Bolsos de rafia/capazos</a><a href="#catalogo" data-folder="Bolsos de hombre">Bolsos de hombre</a></div></details><details class="category-group"><summary data-folder="Viaje">Viaje</summary><div class="category-subnav"><a href="#catalogo" data-folder="Viaje / Maletas">Maletas</a><a href="#catalogo" data-folder="Viaje / Bolsas de viaje">Bolsas de viaje</a><a href="#catalogo" data-folder="Viaje / Mochilas de viaje">Mochilas de viaje</a><a href="#catalogo" data-folder="Viaje / Riñoneras">Riñoneras</a></div></details><details class="category-group"><summary data-folder="Monederos">Monederos</summary><div class="category-subnav"><a href="#catalogo" data-folder="Monederos / Monederos de mujer">Monederos de mujer</a><a href="#catalogo" data-folder="Monederos / Monederos de hombre">Monederos de hombre</a></div></details><details class="category-group"><summary data-folder="Cinturones">Cinturones</summary><div class="category-subnav"><a href="#catalogo" data-folder="Cinturones / Cinturones de mujer">Cinturones de mujer</a><a href="#catalogo" data-folder="Cinturones / Cinturones de hombre">Cinturones de hombre</a></div></details><a href="#catalogo" data-folder="Complementos">Complementos</a><a href="#contacto">Contacto</a>';
+  nav.innerHTML = '<a href="#catalogo" data-folder="Novedades">Novedades</a><details class="category-group"><summary data-folder="Bolsos">Bolsos</summary><div class="category-subnav"><a href="#catalogo" data-folder="Bolsos de hombro">Bolsos de hombro</a><a href="#catalogo" data-folder="Bolsos de mano">Bolsos de mano</a><a href="#catalogo" data-folder="Bolsos de piel">Bolsos de piel</a><a href="#catalogo" data-folder="Bandoleras">Bandoleras</a><a href="#catalogo" data-folder="Mochilas">Mochilas</a><a href="#catalogo" data-folder="Riñoneras">Riñoneras</a><a href="#catalogo" data-folder="Bolsos de rafia/capazos">Bolsos de rafia/capazos</a><a href="#catalogo" data-folder="Bolsos de hombre">Bolsos de hombre</a></div></details><details class="category-group"><summary data-folder="Viaje">Viaje</summary><div class="category-subnav"><a href="#catalogo" data-folder="Viaje / Maletas">Maletas</a><a href="#catalogo" data-folder="Viaje / Bolsas de viaje">Bolsas de viaje</a><a href="#catalogo" data-folder="Viaje / Mochilas de viaje">Mochilas de viaje</a><a href="#catalogo" data-folder="Viaje / Riñoneras">Riñoneras</a></div></details><details class="category-group"><summary data-folder="Monederos">Monederos</summary><div class="category-subnav"><a href="#catalogo" data-folder="Monederos / Monederos de mujer">Monederos de mujer</a><a href="#catalogo" data-folder="Monederos / Monederos de hombre">Monederos de hombre</a></div></details><details class="category-group"><summary data-folder="Cinturones">Cinturones</summary><div class="category-subnav"><a href="#catalogo" data-folder="Cinturones / Cinturones de mujer">Cinturones de mujer</a><a href="#catalogo" data-folder="Cinturones / Cinturones de hombre">Cinturones de hombre</a></div></details><a href="#catalogo" data-folder="Complementos">Complementos</a><a href="#contacto">Contacto</a>';
   const style = document.createElement('style');
-  style.textContent = '.category-nav{gap:22px!important;align-items:center}.category-nav>details{position:relative}.category-nav>details summary{padding:10px 0;cursor:pointer;list-style:none}.category-nav>details summary::-webkit-details-marker{display:none}.category-nav>details summary::after{content:"⌄";margin-left:5px}.category-nav a:hover,.category-nav summary:hover{border-bottom-color:transparent!important;text-decoration:none!important}.category-subnav{position:absolute;left:-14px;top:36px;min-width:220px;padding:8px;background:#fff;border:1px solid #ded8d0;box-shadow:0 14px 30px #0002;display:grid;z-index:60}.category-subnav a{padding:10px 13px!important}.category-subnav a:hover{background:#f7f4ef}@media(max-width:800px){.category-nav>details{flex:0 0 auto}.category-subnav{position:fixed;left:16px;right:16px;top:auto;min-width:0}}';
+  style.textContent = '.category-nav{gap:22px!important;align-items:center}.category-nav>details{position:relative}.category-nav>details summary{padding:10px 0;cursor:pointer;list-style:none}.category-nav>details summary::-webkit-details-marker{display:none}.category-nav a:hover,.category-nav summary:hover{border-bottom-color:transparent!important;text-decoration:none!important}.category-subnav{position:absolute;left:-14px;top:100%;min-width:220px;padding:8px;background:#fff;border:1px solid #ded8d0;box-shadow:0 14px 30px #0002;display:grid;z-index:60}.category-subnav a{padding:10px 13px!important}.category-subnav a:hover{background:#f7f4ef}@media(max-width:800px){.category-nav>details{flex:0 0 auto}.category-subnav{position:fixed;left:16px;right:16px;top:auto;min-width:0}}';
   document.head.append(style);
+  nav.querySelectorAll('details').forEach(group => {
+    group.addEventListener('mouseenter', () => {
+      nav.querySelectorAll('details').forEach(item => { item.open = item === group; });
+    });
+    group.addEventListener('mouseleave', () => { group.open = false; });
+  });
   nav.addEventListener('click', async event => {
     const link = event.target.closest('[data-folder]');
     if (!link) return;
