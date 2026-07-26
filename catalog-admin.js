@@ -557,6 +557,14 @@ const installCategoryNavigation = () => {
     group.addEventListener('mouseenter', openGroup);
     group.addEventListener('pointerenter', openGroup);
   });
+  const closeGroups = () => nav.querySelectorAll('details').forEach(item => { item.open = false; });
+  nav.querySelectorAll(':scope > a').forEach(link => {
+    link.addEventListener('mouseenter', closeGroups);
+    link.addEventListener('pointerenter', closeGroups);
+  });
+  nav.addEventListener('mouseleave', event => {
+    if (!nav.contains(event.relatedTarget)) closeGroups();
+  });
   nav.addEventListener('click', async event => {
     const link = event.target.closest('[data-folder]');
     if (!link) return;
