@@ -551,6 +551,7 @@ const installCategoryNavigation = () => {
   window.addEventListener('resize', alignSubnav);
   nav.querySelectorAll('details').forEach(group => {
     const openGroup = () => {
+      alignSubnav();
       nav.querySelectorAll('details').forEach(item => { item.open = item === group; });
     };
     group.addEventListener('mouseenter', openGroup);
@@ -559,6 +560,7 @@ const installCategoryNavigation = () => {
   nav.addEventListener('click', async event => {
     const link = event.target.closest('[data-folder]');
     if (!link) return;
+    alignSubnav();
     const group = link.closest('details');
     if (link.tagName === 'SUMMARY') {
       nav.querySelectorAll('details').forEach(item => { if (item !== group) item.open = false; });
