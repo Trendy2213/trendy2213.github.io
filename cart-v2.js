@@ -63,7 +63,7 @@ window.TrendyAuth = {
     try {
       const result = await identity('signInWithPassword', { email: String(email || '').trim(), password, returnSecureToken: true });
       const next = { email: result.email || email, uid: result.localId, idToken: result.idToken, refreshToken: result.refreshToken, expiresAt: Date.now() + Number(result.expiresIn || 3600) * 1000 };
-      if (!(await approvalStatus(next))) { const error = new Error('PENDING_APPROVAL'); error.code = 'PENDING_APPROVAL'; throw error; }
+      
       session = next; approved = true; saveStored(next, remember); emit();
       return { user: { email: next.email, uid: next.uid } };
     } catch (error) { clearStored(); session = null; approved = false; emit(); throw friendly(error); }
@@ -78,7 +78,7 @@ window.TrendyAuth = {
 
 (async () => {
   const stored = readStored();
-  if (stored && Number(stored.expiresAt || 0) > Date.now() && await approvalStatus(stored)) { session = stored; approved = true; }
+  if (stored && Number(stored.expiresAt || 0) > Date.now()) { session = stored; approved = true; }
   else clearStored();
   readyResolve(session && approved ? session : null); emit();
 })();
