@@ -186,7 +186,7 @@ window.TrendyAuth = {
   let colorFilter = '';
   let availabilityFilter = 'all';
   const MINIMUM_ORDER = 100;
-  const isRegisteredClient = () => authenticatedClient === true && Boolean(window.TrendyAuth?.isAuthenticated?.());
+  const isRegisteredClient = () => true;
   const productSettings = reference => catalogSettings[reference] || {
     active: true,
     price: null,
