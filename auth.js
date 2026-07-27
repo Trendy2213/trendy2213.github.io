@@ -1,4 +1,4 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
+import { initializeApp } from 'https://cdn.jsdelivr.net/npm/firebase@12.1.0/app/+esm';
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -9,14 +9,14 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   signOut as firebaseSignOut
-} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+} from 'https://cdn.jsdelivr.net/npm/firebase@12.1.0/auth/+esm';
 import {
   doc,
   getDoc,
   getFirestore,
   serverTimestamp,
   setDoc
-} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+} from 'https://cdn.jsdelivr.net/npm/firebase@12.1.0/firestore/+esm';
 
 const firebaseConfig = window.TRENDY_FIREBASE_CONFIG || {
   apiKey: 'AIzaSyDqp23klSLZPgaeh_7uDfcBXhT1bgbsVU4',
