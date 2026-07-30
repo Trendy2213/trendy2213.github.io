@@ -412,7 +412,9 @@ window.TrendyAuth = {
     if (!s) return [l * 255, l * 255, l * 255];
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    return [hueToRgb(p, q, h + 1 / 3), hueToRgb(p, q, h), hueToRgb(p, q, h - 1 / 3)].map(value => value * 255);
+    return [hueToRgb(p, q, h + 1 / 3), hueToRgb(p, q, h), hueToRgb(p, async requestAccess() { throw new Error('Envía la soliconst canSend = hasItems && priced && subtotal >= MINIMUM_ORDER;cowhatsappLink.dataset.subtotal = String(subtotal);whatsappLink.dataset.subtotal = String(subtotal);
+    whatsappLink.dataset.priced = String(priced);nst canSend = hasItems && (!priced || subtotal >= MINIMUM_ORDER);citud profesional por email.'const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\nTotal IVA no incluido: ${subtotal.toFixed(2)} €`;const totalLine = link.dataset.priced === 'true' ? `Total IVA no incluido: ${subtotal.toFixed(2)} €` : 'Precios pendientes de confirmación por Trendy Bag.';
+      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;); },async requestAccess() { return { pending: true }; },q, h - 1 / 3)].map(value => value * 255);
   };
 
   const recolorProduct = color => {
