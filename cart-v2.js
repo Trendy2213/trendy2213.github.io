@@ -1,3 +1,9 @@
+async requestAccess() { throw new Error('Envía la solicitud profesional por email.'); },  async requestAccess() { return { pending: true }; },
+const canSend = hasItems && priced && subtotal >= MINIMUM_ORDER;  const canSend = hasItems && (!priced || subtotal >= MINIMUM_ORDER);
+whatsappLink.dataset.subtotal = String(subtotal);  whatsappLink.dataset.subtotal = String(subtotal);
+    whatsappLink.dataset.priced = String(priced);
+const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\nTotal IVA no incluido: ${subtotal.toFixed(2)} €`;  const totalLine = link.dataset.priced === 'true' ? `Total IVA no incluido: ${subtotal.toFixed(2)} €` : 'Precios pendientes de confirmación por Trendy Bag.';
+      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;
 const config = window.TRENDY_FIREBASE_CONFIG || { apiKey: 'AIzaSyDqp23klSLZPgaeh_7uDfcBXhT1bgbsVU4', projectId: 'trendy-bag-a6218' };
 const SESSION_KEY = 'trendy-auth-session-v2';
 const ADMIN_EMAIL = 'trendybag@hotmail.com';
