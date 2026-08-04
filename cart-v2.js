@@ -587,7 +587,7 @@ window.TrendyAuth = {
 
   const orderText = () => {
     const lines = cart.map(item => {
-      const unit = item.price == null ? '' : ` × ${window.TrendyCatalog?.formatPrice?.(item.price) || item.price.toFixed(2) + ' €'}`;
+      const unit = Number(item.price) > 0 ? ` × ${window.TrendyCatalog?.formatPrice?.(item.price) || item.price.toFixed(2) + ' €'}` : '';
       return `${item.ref} - ${item.name} - ${item.color}: ${item.qty} ${copy.units}${unit}`;
     }).join('\n');
     const orderData = btoa(unescape(encodeURIComponent(JSON.stringify({
@@ -623,7 +623,7 @@ window.TrendyAuth = {
 
     const whatsappLink = cartModal.querySelector('.send-order');
     const hasItems = cart.length > 0;
-    const priced = hasItems && cart.every(item => item.price != null && Number.isFinite(Number(item.price)));
+    const priced = hasItems && cart.every(item => Number.isFinite(Number(item.price)) && Number(item.price) > 0);
     const subtotal = priced ? cart.reduce((total, item) => total + Number(item.price) * item.qty, 0) : 0;
     let summary = cartModal.querySelector('.cart-summary');
     if (!summary) {
