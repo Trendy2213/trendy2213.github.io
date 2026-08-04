@@ -1,11 +1,3 @@
-async requestAccess() { return { pending: true }; },  async requestAccess() { return { pending: true }; },
-const canSend = hasItems && (!priced || subtotal >= MINIMUM_ORDER);  const canSend = hasItems && (!priced || subtotal >= MINIMUM_ORDER);
-whatsappLink.dataset.subtotal = String(subtotal);
-    whatsappLink.dataset.priced = String(priced);  whatsappLink.dataset.subtotal = String(subtotal);
-    whatsappLink.dataset.priced = String(priced);
-const totalLine = link.dataset.priced === 'true' ? `Total IVA no incluido: ${subtotal.toFixed(2)} €` : 'Precios pendientes de confirmación por Trendy Bag.';
-      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;  const totalLine = link.dataset.priced === 'true' ? `Total IVA no incluido: ${subtotal.toFixed(2)} €` : 'Precios pendientes de confirmación por Trendy Bag.';
-      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;
 const config = window.TRENDY_FIREBASE_CONFIG || { apiKey: 'AIzaSyDqp23klSLZPgaeh_7uDfcBXhT1bgbsVU4', projectId: 'trendy-bag-a6218' };
 const SESSION_KEY = 'trendy-auth-session-v2';
 const ADMIN_EMAIL = 'trendybag@hotmail.com';
@@ -80,7 +72,7 @@ window.TrendyAuth = {
     try { await identity('sendOobCode', { requestType: 'PASSWORD_RESET', email: String(email || '').trim() }); }
     catch (error) { throw friendly(error); }
   },
-  async requestAccess() { throw new Error('Envía la solicitud profesional por email.'); },
+  async requestAccess() { return { pending: true }; },
   async signOut() { clearStored(); session = null; approved = false; emit(); }
 };
 
@@ -420,9 +412,7 @@ window.TrendyAuth = {
     if (!s) return [l * 255, l * 255, l * 255];
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    return [hueToRgb(p, q, h + 1 / 3), hueToRgb(p, q, h), hueToRgb(p, async requestAccess() { throw new Error('Envía la soliconst canSend = hasItems && priced && subtotal >= MINIMUM_ORDER;cowhatsappLink.dataset.subtotal = String(subtotal);whatsappLink.dataset.subtotal = String(subtotal);
-    whatsappLink.dataset.priced = String(priced);nst canSend = hasItems && (!priced || subtotal >= MINIMUM_ORDER);citud profesional por email.'const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\nTotal IVA no incluido: ${subtotal.toFixed(2)} €`;const totalLine = link.dataset.priced === 'true' ? `Total IVA no incluido: ${subtotal.toFixed(2)} €` : 'Precios pendientes de confirmación por Trendy Bag.';
-      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;); },async requestAccess() { return { pending: true }; },q, h - 1 / 3)].map(value => value * 255);
+    return [hueToRgb(p, q, h + 1 / 3), hueToRgb(p, q, h), hueToRgb(p, q, h - 1 / 3)].map(value => value * 255);
   };
 
   const recolorProduct = color => {
@@ -644,13 +634,14 @@ window.TrendyAuth = {
     summary.hidden = !hasItems;
     summary.innerHTML = priced
       ? `<span>Total IVA no incluido</span><br><strong>${window.TrendyCatalog?.formatPrice?.(subtotal) || subtotal.toFixed(2) + ' €'}</strong>${subtotal < MINIMUM_ORDER ? `<p class="minimum-warning">El pedido mínimo es de ${MINIMUM_ORDER.toFixed(2)} € IVA no incluido. Faltan ${(MINIMUM_ORDER - subtotal).toFixed(2)} €.</p>` : ''}`
-      : '<p class="minimum-warning">Falta indicar el precio de algún producto. Trendy Bag debe completar los precios antes de enviar pedidos online.</p>';
-    const canSend = hasItems && priced && subtotal >= MINIMUM_ORDER;
+      : '<p>Solicitud sin precio cerrado. Trendy Bag confirmará disponibilidad, precios y condiciones antes de aceptar el pedido.</p>';
+    const canSend = hasItems && (!priced || subtotal >= MINIMUM_ORDER);
     whatsappLink.hidden = !hasItems;
     whatsappLink.setAttribute('aria-disabled', String(!canSend));
     whatsappLink.removeAttribute('href');
     whatsappLink.dataset.canSend = String(canSend);
     whatsappLink.dataset.subtotal = String(subtotal);
+    whatsappLink.dataset.priced = String(priced);
     cartModal.hidden = false;
     document.body.style.overflow = 'hidden';
   };
@@ -810,7 +801,10 @@ window.TrendyAuth = {
         subtotal,
         minimumOrder: MINIMUM_ORDER
       });
-      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\nTotal IVA no incluido: ${subtotal.toFixed(2)} €`;
+      const totalLine = link.dataset.priced === 'true'
+        ? `Total IVA no incluido: ${subtotal.toFixed(2)} €`
+        : 'Precios pendientes de confirmación por Trendy Bag.';
+      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;
       const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
       if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
       else window.location.href = whatsappUrl;
