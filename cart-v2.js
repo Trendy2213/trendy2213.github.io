@@ -623,7 +623,7 @@ window.TrendyAuth = {
 
     const whatsappLink = cartModal.querySelector('.send-order');
     const hasItems = cart.length > 0;
-    const priced = hasItems && cart.every(item => Number.isFinite(Number(item.price)));
+    const priced = hasItems && cart.every(item => item.price != null && Number.isFinite(Number(item.price)));
     const subtotal = priced ? cart.reduce((total, item) => total + Number(item.price) * item.qty, 0) : 0;
     let summary = cartModal.querySelector('.cart-summary');
     if (!summary) {
