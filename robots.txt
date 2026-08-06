@@ -2,7 +2,3 @@ User-agent: *
 Allow: /
 
 Sitemap: https://trendybagbcn.com/sitemap.xml
-User-agent: *
-Allow: /
-
-Sitemap: https://trendybagbcn.com/sitemap.xml
