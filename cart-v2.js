@@ -328,8 +328,8 @@ window.TrendyAuth = {
     }
     gate.textContent = copy.addGate;
     gate.hidden = allowed;
-    floatButton.hidden = !allowed || !cart.length;
-    headerCartCount.textContent = allowed && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
+    if (floatButton) floatButton.hidden = !allowed || !cart.length;
+    if (headerCartCount) headerCartCount.textContent = allowed && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
   };
 
   window.addEventListener('trendy-auth-state', event => {
@@ -580,9 +580,12 @@ window.TrendyAuth = {
 
   const saveCart = () => {
     localStorage.setItem('trendy-bag-order', JSON.stringify(cart));
-    floatButton.hidden = !isRegisteredClient() || !cart.length;
-    floatButton.querySelector('span').textContent = cart.reduce((total, item) => total + item.qty, 0);
-    headerCartCount.textContent = isRegisteredClient() && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
+    if (floatButton) {
+      floatButton.hidden = !isRegisteredClient() || !cart.length;
+      const floatCount = floatButton.querySelector('span');
+      if (floatCount) floatCount.textContent = cart.reduce((total, item) => total + item.qty, 0);
+    }
+    if (headerCartCount) headerCartCount.textContent = isRegisteredClient() && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
   };
 
   const orderText = () => {
@@ -682,16 +685,16 @@ window.TrendyAuth = {
       addButton.textContent = originalLabel;
       addButton.classList.remove('added');
     }, 1400);
-    floatButton.classList.remove('just-added');
-    void floatButton.offsetWidth;
-    floatButton.classList.add('just-added');
+    if (floatButton) {
+      floatButton.classList.remove('just-added');
+      void floatButton.offsetWidth;
+      floatButton.classList.add('just-added');
+    }
   });
 
-  floatButton.addEventListener('click', openCart);
-  headerCartButton.addEventListener('click', openCart);
-  document.querySelector('#header-login').addEventListener('click', () => {
-    openLogin('');
-  });
+  floatButton?.addEventListener('click', openCart);
+  headerCartButton?.addEventListener('click', openCart);
+  document.querySelector('#header-login')?.addEventListener('click', () => openLogin(''));
   loginModal.querySelector('.login-form').addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
