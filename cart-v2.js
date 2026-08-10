@@ -59,6 +59,7 @@ const approvalStatus = async value => {
 window.TrendyAuth = {
   isAuthenticated() { return Boolean(session && approved); },
   whenReady() { return ready; },
+  getIdToken() { return session?.idToken || ''; },
   async signIn(email, password, remember = true) {
     try {
       const result = await identity('signInWithPassword', { email: String(email || '').trim(), password, returnSecureToken: true });
