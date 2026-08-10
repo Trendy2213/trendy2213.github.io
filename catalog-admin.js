@@ -67,6 +67,52 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const settingsRef = doc(db, 'catalog', 'settings');
 
+const firestoreBase = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(firebaseConfig.projectId)}/databases/(default)/documents`;
+const toFirestoreValue = value => {
+  if (value === null || value === undefined) return { nullValue: null };
+  if (typeof value === 'boolean') return { booleanValue: value };
+  if (typeof value === 'number') return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  if (typeof value === 'string') return { stringValue: value };
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(toFirestoreValue) } };
+  return { mapValue: { fields: Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toFirestoreValue(item)])) } };
+};
+const fromFirestoreValue = value => {
+  if (!value || 'nullValue' in value) return null;
+  if ('booleanValue' in value) return value.booleanValue;
+  if ('integerValue' in value) return Number(value.integerValue);
+  if ('doubleValue' in value) return Number(value.doubleValue);
+  if ('stringValue' in value) return value.stringValue;
+  if ('timestampValue' in value) return value.timestampValue;
+  if ('arrayValue' in value) return (value.arrayValue.values || []).map(fromFirestoreValue);
+  if ('mapValue' in value) return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([key, item]) => [key, fromFirestoreValue(item)]));
+  return null;
+};
+const decodeDocument = document => document ? Object.fromEntries(Object.entries(document.fields || {}).map(([key, value]) => [key, fromFirestoreValue(value)])) : null;
+const firestoreRequest = async (path, options = {}) => {
+  const idToken = window.TrendyAuth?.getIdToken?.() || '';
+  if (!idToken) throw new Error('Inicia sesión de nuevo como administrador.');
+  const response = await fetch(`${firestoreBase}/${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}`, ...(options.headers || {}) }
+  });
+  if (response.status === 404) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error?.message || 'Firebase ha rechazado la operación.');
+  return data;
+};
+const restSetDoc = (path, data) => firestoreRequest(path, {
+  method: 'PATCH',
+  body: JSON.stringify({ fields: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value)])) })
+});
+const restGetDoc = async path => decodeDocument(await firestoreRequest(path));
+const restListCollection = async path => {
+  const response = await firestoreRequest(path);
+  return (response?.documents || []).map(document => ({
+    id: String(document.name || '').split('/').pop(),
+    data: decodeDocument(document)
+  }));
+};
+
 const mergeCatalog = remote => {
   references = [...new Set([...BASE_REFERENCES, ...Object.keys(remote || {})])];
   return Object.fromEntries(references.map(reference => {
@@ -121,7 +167,7 @@ const prepareProductImage = async (file, reference) => {
   let dataUrl = canvas.toDataURL('image/webp', 0.84);
   if (dataUrl.length > 850000) dataUrl = canvas.toDataURL('image/jpeg', 0.76);
   if (dataUrl.length > 900000) throw new Error('La fotografía sigue siendo demasiado pesada. Reduce su tamaño e inténtalo de nuevo.');
-  await setDoc(doc(db, 'productImages', reference), {
+  await restSetDoc(`productImages/${encodeURIComponent(reference)}`, {
     dataUrl,
     updatedAt: new Date().toISOString()
   });
@@ -467,7 +513,7 @@ const injectAdminInterface = () => {
           folders: Object.fromEntries([...section.querySelectorAll('[data-folder]')].map(input => [input.dataset.folder, input.checked]))
         };
       }
-      await setDoc(settingsRef, { products: next, updatedAt: new Date().toISOString() }, { merge: true });
+      await restSetDoc('catalog/settings', { products: next, updatedAt: new Date().toISOString() });
       catalog = mergeCatalog(next);
       emitCatalog();
       feedback.textContent = 'Cambios guardados y publicados.';
@@ -487,7 +533,7 @@ const injectAdminInterface = () => {
 
 injectAdminInterface();
 
-const handleAuthState = detail => {
+const handleAuthState = async detail => {
   currentEmail = (detail?.email || '').toLowerCase();
   unsubscribe?.();
   unsubscribeImages?.();
@@ -501,25 +547,24 @@ const handleAuthState = detail => {
     resolveReady = null;
     return;
   }
-  unsubscribe = onSnapshot(settingsRef, snapshot => {
-    catalog = mergeCatalog(snapshot.exists() ? snapshot.data()?.products : null);
+  try {
+    const [settings, images] = await Promise.all([
+      restGetDoc('catalog/settings'),
+      restListCollection('productImages')
+    ]);
+    productImages = Object.fromEntries(images.map(item => [item.id, item.data?.dataUrl || '']).filter(([, image]) => image));
+    catalog = mergeCatalog(settings?.products || null);
     emitCatalog();
     resolveReady?.(catalog);
     resolveReady = null;
-  }, error => {
+  } catch (error) {
     console.error(error);
+    productImages = {};
     catalog = structuredClone(defaults);
     emitCatalog();
     resolveReady?.(catalog);
     resolveReady = null;
-  });
-  unsubscribeImages = onSnapshot(collection(db, 'productImages'), snapshot => {
-    productImages = Object.fromEntries(snapshot.docs
-      .map(item => [item.id, item.data()?.dataUrl || ''])
-      .filter(([, image]) => image));
-    catalog = mergeCatalog(catalog);
-    emitCatalog();
-  });
+  }
 };
 
 window.addEventListener('trendy-auth-state', event => handleAuthState(event.detail));
