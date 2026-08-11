@@ -209,7 +209,7 @@ window.TrendyAuth = {
     const grid = document.querySelector('.product-grid');
     if (!grid) return;
     Object.entries(catalogSettings).forEach(([reference, settings]) => {
-      const imageUrl = safeImageUrl(settings.image);
+      const imageUrl = safeImageUrl(settings.image || `/assets/catalogo/${encodeURIComponent(reference)}.webp`);
       if (grid.querySelector(`[data-reference="${CSS.escape(reference)}"]`) || !imageUrl) return;
       const card = document.createElement('article');
       card.className = 'product';
@@ -249,7 +249,7 @@ window.TrendyAuth = {
     let visibleCount = 0;
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
-      const configuredImage = safeImageUrl(settings.image);
+      const configuredImage = safeImageUrl(settings.image || (card.dataset.dynamic === 'true' ? `/assets/catalogo/${encodeURIComponent(card.dataset.reference)}.webp` : ''));
       const cardImage = card.querySelector('.product-image img');
       if (configuredImage && cardImage && cardImage.src !== configuredImage) {
         cardImage.src = configuredImage;
