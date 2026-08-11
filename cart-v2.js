@@ -286,17 +286,12 @@ window.TrendyAuth = {
     Cinturones: ['Cinturones / Cinturones de mujer', 'Cinturones / Cinturones de hombre'],
     Complementos: ['Complementos']
   };
-  const familyLabel = folder => folder.includes(' / ') ? folder.split(' / ')[1] : folder;
-  const familyForProduct = settings => {
-    const groups = FAMILY_GROUPS[activeFolder] || [activeFolder];
-    const assigned = groups.find(folder => settings.folders?.[folder] === true);
-    if (assigned) return assigned;
-    if (activeFolder === 'Novedades') {
-      return ['Viaje', 'Monederos', 'Cinturones', 'Complementos', 'Bolsos']
-        .find(folder => settings.folders?.[folder] === true) || 'Otros modelos';
-    }
-    return activeFolder;
+  const referenceFamily = reference => {
+    const value = String(reference || '').trim().toUpperCase();
+    return value.match(/^[A-Z]+/)?.[0] || value.match(/^\d{3}/)?.[0] || 'OTROS';
   };
+  const familyLabel = family => family.startsWith('REF:') ? `Familia ${family.slice(4)}` : family;
+  const familyForProduct = reference => `REF:${referenceFamily(reference)}`;
 
   const applyCatalogToPage = () => {
     syncDynamicProducts();
@@ -320,7 +315,7 @@ window.TrendyAuth = {
         || !belongsToFolder || !matchesSearch || !matchesColor || !matchesAvailability;
       if (!card.hidden) {
         visibleCount += 1;
-        visibleProducts.push({ card, family: familyForProduct(settings) });
+        visibleProducts.push({ card, family: familyForProduct(card.dataset.reference) });
       }
       let price = card.querySelector('.trade-price');
       if (!price) {
@@ -339,7 +334,10 @@ window.TrendyAuth = {
         const aIndex = familyOrder.indexOf(a.family);
         const bIndex = familyOrder.indexOf(b.family);
         const order = (aIndex < 0 ? 999 : aIndex) - (bIndex < 0 ? 999 : bIndex);
-        return order || a.card.dataset.reference.localeCompare(b.card.dataset.reference, 'es', { numeric: true });
+        const familyOrderByName = aIndex < 0 && bIndex < 0
+          ? a.family.localeCompare(b.family, 'es', { numeric: true })
+          : 0;
+        return order || familyOrderByName || a.card.dataset.reference.localeCompare(b.card.dataset.reference, 'es', { numeric: true });
       });
       let currentFamily = '';
       visibleProducts.forEach(({ card, family }) => {
