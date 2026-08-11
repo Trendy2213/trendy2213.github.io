@@ -243,8 +243,8 @@ window.TrendyAuth = {
     Object.entries(catalogSettings).forEach(([rawReference, settings]) => {
       const reference = String(rawReference || '').trim().toUpperCase();
       if (!reference || renderedReferences.has(reference)) return;
-      const imageUrl = safeImageUrl(settings.image);
-      if (!imageUrl) return;
+      const imageUrl = safeImageUrl(settings.image)
+        || new URL(`/assets/catalogo/${encodeURIComponent(reference)}.webp`, location.origin).href;
       const card = document.createElement('article');
       card.className = 'product';
       card.dataset.reference = reference;
