@@ -278,9 +278,30 @@ window.TrendyAuth = {
     });
   };
 
+  const FAMILY_GROUPS = {
+    Novedades: ['Bolsos de hombro', 'Bolsos de mano', 'Bolsos de piel', 'Bandoleras', 'Mochilas', 'Riñoneras', 'Bolsos de rafia/capazos', 'Bolsos de hombre', 'Viaje / Maletas', 'Viaje / Bolsas de viaje', 'Viaje / Mochilas de viaje', 'Viaje / Riñoneras', 'Monederos / Monederos de mujer', 'Monederos / Monederos de hombre', 'Cinturones / Cinturones de mujer', 'Cinturones / Cinturones de hombre', 'Complementos'],
+    Bolsos: ['Bolsos de hombro', 'Bolsos de mano', 'Bolsos de piel', 'Bandoleras', 'Mochilas', 'Riñoneras', 'Bolsos de rafia/capazos', 'Bolsos de hombre'],
+    Viaje: ['Viaje / Maletas', 'Viaje / Bolsas de viaje', 'Viaje / Mochilas de viaje', 'Viaje / Riñoneras'],
+    Monederos: ['Monederos / Monederos de mujer', 'Monederos / Monederos de hombre'],
+    Cinturones: ['Cinturones / Cinturones de mujer', 'Cinturones / Cinturones de hombre'],
+    Complementos: ['Complementos']
+  };
+  const familyLabel = folder => folder.includes(' / ') ? folder.split(' / ')[1] : folder;
+  const familyForProduct = settings => {
+    const groups = FAMILY_GROUPS[activeFolder] || [activeFolder];
+    const assigned = groups.find(folder => settings.folders?.[folder] === true);
+    if (assigned) return assigned;
+    if (activeFolder === 'Novedades') {
+      return ['Viaje', 'Monederos', 'Cinturones', 'Complementos', 'Bolsos']
+        .find(folder => settings.folders?.[folder] === true) || 'Otros modelos';
+    }
+    return activeFolder;
+  };
+
   const applyCatalogToPage = () => {
     syncDynamicProducts();
     let visibleCount = 0;
+    const visibleProducts = [];
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
       const configuredImage = card.dataset.dynamic === 'true'
@@ -297,7 +318,10 @@ window.TrendyAuth = {
       const matchesAvailability = availabilityFilter !== 'available' || settings.active !== false;
       card.hidden = (isRegisteredClient() && settings.active === false)
         || !belongsToFolder || !matchesSearch || !matchesColor || !matchesAvailability;
-      if (!card.hidden) visibleCount += 1;
+      if (!card.hidden) {
+        visibleCount += 1;
+        visibleProducts.push({ card, family: familyForProduct(settings) });
+      }
       let price = card.querySelector('.trade-price');
       if (!price) {
         price = document.createElement('p');
@@ -307,6 +331,29 @@ window.TrendyAuth = {
       price.hidden = !isRegisteredClient() || settings.price == null;
       price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · IVA no incluido`;
     });
+    const grid = document.querySelector('.product-grid');
+    grid?.querySelectorAll('.catalog-family-heading').forEach(heading => heading.remove());
+    if (grid) {
+      const familyOrder = FAMILY_GROUPS[activeFolder] || [activeFolder];
+      visibleProducts.sort((a, b) => {
+        const aIndex = familyOrder.indexOf(a.family);
+        const bIndex = familyOrder.indexOf(b.family);
+        const order = (aIndex < 0 ? 999 : aIndex) - (bIndex < 0 ? 999 : bIndex);
+        return order || a.card.dataset.reference.localeCompare(b.card.dataset.reference, 'es', { numeric: true });
+      });
+      let currentFamily = '';
+      visibleProducts.forEach(({ card, family }) => {
+        if (family !== currentFamily) {
+          currentFamily = family;
+          const heading = document.createElement('h3');
+          heading.className = 'catalog-family-heading';
+          heading.textContent = familyLabel(family);
+          heading.style.cssText = 'grid-column:1/-1;margin:30px 0 0;padding:18px 0 10px;border-bottom:2px solid #141414;font-family:Georgia,serif;font-size:30px;font-weight:400';
+          grid.append(heading);
+        }
+        grid.append(card);
+      });
+    }
     const results = document.querySelector('.catalog-results');
     if (results) results.textContent = `${visibleCount} producto${visibleCount === 1 ? '' : 's'}`;
   };
