@@ -100,13 +100,28 @@ const firestoreRequest = async (path, options = {}) => {
   if (!response.ok) throw new Error(data?.error?.message || 'Firebase ha rechazado la operación.');
   return data;
 };
+const publicFirestoreRequest = async path => {
+  const response = await fetch(`${firestoreBase}/${path}`);
+  if (response.status === 404) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error?.message || 'No se pudo cargar el catálogo público.');
+  return data;
+};
 const restSetDoc = (path, data) => firestoreRequest(path, {
   method: 'PATCH',
   body: JSON.stringify({ fields: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value)])) })
 });
 const restGetDoc = async path => decodeDocument(await firestoreRequest(path));
 const restListCollection = async path => {
-  const response = await firestoreRequest(path);
+  const response = await firestoreRequest(`${path}?pageSize=300`);
+  return (response?.documents || []).map(document => ({
+    id: String(document.name || '').split('/').pop(),
+    data: decodeDocument(document)
+  }));
+};
+const publicRestGetDoc = async path => decodeDocument(await publicFirestoreRequest(path));
+const publicRestListCollection = async path => {
+  const response = await publicFirestoreRequest(`${path}?pageSize=300`);
   return (response?.documents || []).map(document => ({
     id: String(document.name || '').split('/').pop(),
     data: decodeDocument(document)
@@ -540,8 +555,18 @@ const handleAuthState = async detail => {
   unsubscribe = null;
   unsubscribeImages = null;
   if (!detail?.authenticated) {
-    productImages = {};
-    catalog = structuredClone(defaults);
+    try {
+      const [settings, images] = await Promise.all([
+        publicRestGetDoc('catalog/settings'),
+        publicRestListCollection('productImages')
+      ]);
+      productImages = Object.fromEntries(images.map(item => [item.id, item.data?.dataUrl || '']).filter(([, image]) => image));
+      catalog = mergeCatalog(settings?.products || null);
+    } catch (error) {
+      console.error(error);
+      productImages = {};
+      catalog = structuredClone(defaults);
+    }
     emitCatalog();
     resolveReady?.(catalog);
     resolveReady = null;
