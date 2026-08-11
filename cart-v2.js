@@ -59,7 +59,6 @@ const approvalStatus = async value => {
 window.TrendyAuth = {
   isAuthenticated() { return Boolean(session && approved); },
   whenReady() { return ready; },
-  getIdToken() { return session?.idToken || ''; },
   async signIn(email, password, remember = true) {
     try {
       const result = await identity('signInWithPassword', { email: String(email || '').trim(), password, returnSecureToken: true });
@@ -208,9 +207,24 @@ window.TrendyAuth = {
   const syncDynamicProducts = () => {
     const grid = document.querySelector('.product-grid');
     if (!grid) return;
+    // Una referencia representa siempre una sola ficha. Esta limpieza evita
+    // duplicados si una pestaña antigua vuelve a emitir el catálogo o si el
+    // contenido remoto llega más de una vez durante una recarga.
+    const renderedReferences = new Set();
+    grid.querySelectorAll('.product[data-reference]').forEach(card => {
+      const reference = String(card.dataset.reference || '').trim().toUpperCase();
+      if (!reference || renderedReferences.has(reference)) {
+        card.remove();
+        return;
+      }
+      card.dataset.reference = reference;
+      renderedReferences.add(reference);
+    });
     Object.entries(catalogSettings).forEach(([reference, settings]) => {
-      const imageUrl = safeImageUrl(settings.image || `/assets/catalogo/${encodeURIComponent(reference)}.webp`);
-      if (grid.querySelector(`[data-reference="${CSS.escape(reference)}"]`) || !imageUrl) return;
+      reference = String(reference || '').trim().toUpperCase();
+      if (!reference || renderedReferences.has(reference)) return;
+      const imageUrl = safeImageUrl(settings.image);
+      if (!imageUrl) return;
       const card = document.createElement('article');
       card.className = 'product';
       card.dataset.reference = reference;
@@ -241,6 +255,7 @@ window.TrendyAuth = {
       productCopy.append(ref, title, measures, hint);
       card.append(imageButton, productCopy);
       grid.append(card);
+      renderedReferences.add(reference);
     });
   };
 
@@ -249,7 +264,7 @@ window.TrendyAuth = {
     let visibleCount = 0;
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
-      const configuredImage = safeImageUrl(settings.image || (card.dataset.dynamic === 'true' ? `/assets/catalogo/${encodeURIComponent(card.dataset.reference)}.webp` : ''));
+      const configuredImage = safeImageUrl(settings.image);
       const cardImage = card.querySelector('.product-image img');
       if (configuredImage && cardImage && cardImage.src !== configuredImage) {
         cardImage.src = configuredImage;
