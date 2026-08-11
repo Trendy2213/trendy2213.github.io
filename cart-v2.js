@@ -243,8 +243,7 @@ window.TrendyAuth = {
     Object.entries(catalogSettings).forEach(([rawReference, settings]) => {
       const reference = String(rawReference || '').trim().toUpperCase();
       if (!reference || renderedReferences.has(reference)) return;
-      const imageUrl = safeImageUrl(settings.image)
-        || new URL(`/assets/catalogo/${encodeURIComponent(reference)}.webp`, location.origin).href;
+      const imageUrl = new URL(`/assets/catalogo/${encodeURIComponent(reference)}.webp`, location.origin).href;
       const card = document.createElement('article');
       card.className = 'product';
       card.dataset.reference = reference;
@@ -284,7 +283,9 @@ window.TrendyAuth = {
     let visibleCount = 0;
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
-      const configuredImage = safeImageUrl(settings.image);
+      const configuredImage = card.dataset.dynamic === 'true'
+        ? new URL(`/assets/catalogo/${encodeURIComponent(card.dataset.reference)}.webp`, location.origin).href
+        : safeImageUrl(settings.image);
       const cardImage = card.querySelector('.product-image img');
       if (configuredImage && cardImage && cardImage.src !== configuredImage) {
         cardImage.src = configuredImage;
