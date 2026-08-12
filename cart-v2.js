@@ -290,7 +290,7 @@ window.TrendyAuth = {
     const value = String(reference || '').trim().toUpperCase();
     return value.match(/^[A-Z]+/)?.[0] || value.match(/^\d{3}/)?.[0] || 'OTROS';
   };
-  const familyLabel = family => family.startsWith('REF:') ? `Familia ${family.slice(4)}` : family;
+  const familyLabel = family => family.startsWith('REF:') ? `Colección ${family.slice(4)}` : family;
   const familyForProduct = reference => `REF:${referenceFamily(reference)}`;
 
   const applyCatalogToPage = () => {
