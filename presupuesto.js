@@ -17,19 +17,71 @@ const quote = document.querySelector('.quote');
 const lines = document.querySelector('#lines');
 const money = value => new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(value || 0);
 let order = {items:[]};
+const safeString = (value, maximum = 200) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, maximum);
+const safeQuantity = value => Math.min(100000, Math.max(0, Math.floor(Number(value) || 0)));
+const safePrice = value => Math.min(1000000, Math.max(0, Number(value) || 0));
+const normalizeOrder = value => {
+  const source = value && typeof value === 'object' ? value : {};
+  const customer = source.customer && typeof source.customer === 'object' ? source.customer : {};
+  const items = Array.isArray(source.items) ? source.items.slice(0, 250).map(item => ({
+    ref: safeString(item?.ref || item?.reference, 80),
+    reference: safeString(item?.reference || item?.ref, 80),
+    name: safeString(item?.name),
+    color: safeString(item?.color, 80),
+    qty: Math.max(1, safeQuantity(item?.qty || item?.quantity || 1)),
+    quantity: Math.max(1, safeQuantity(item?.quantity || item?.qty || 1)),
+    price: safePrice(item?.price)
+  })) : [];
+  return {
+    id: safeString(source.id, 100),
+    customerEmail: safeString(source.customerEmail, 254),
+    customer: {
+      company: safeString(customer.company),
+      contact: safeString(customer.contact),
+      phone: safeString(customer.phone, 40)
+    },
+    items
+  };
+};
 
 try {
   const encoded = new URLSearchParams(location.search).get('pedido');
-  if (encoded) order = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+  if (encoded && encoded.length <= 100000) order = normalizeOrder(JSON.parse(decodeURIComponent(escape(atob(encoded)))));
 } catch { order = {items:[]}; }
-if (!order.items?.length) order.items = [{ref:'',name:'',color:'',qty:1}];
+if (!order.items?.length) order = normalizeOrder({items:[{ref:'',name:'',color:'',qty:1}]});
 document.querySelector('#customer').value = order.customer?.company || order.customer?.contact || order.customerEmail || '';
 
-const quoteId = `TB-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${String(Date.now()).slice(-4)}`;
+const quoteRandom = globalThis.crypto?.randomUUID
+  ? globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()
+  : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`.toUpperCase();
+const quoteId = `TB-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${quoteRandom}`;
 document.querySelector('#quote-number').value = quoteId;
 
 const render = () => {
-  lines.innerHTML = order.items.map((item,index)=>`<tr data-index="${index}"><td><select class="availability status"><option value="yes">Sí</option><option value="no">No hay</option></select></td><td><strong>${item.ref||'-'}</strong></td><td>${item.name||'-'}</td><td>${item.color||'-'}</td><td>${item.qty||1}</td><td><input class="served qty" type="number" min="0" value="${item.qty||1}"></td><td><input class="price money" type="number" min="0" step="0.01" value="${Number(item.price || 0)}"></td><td class="subtotal">0,00 €</td></tr>`).join('');
+  lines.replaceChildren();
+  order.items.forEach((item, index) => {
+    const row = document.createElement('tr');
+    row.dataset.index = String(index);
+    const availabilityCell = document.createElement('td');
+    const availability = document.createElement('select');
+    availability.className = 'availability status';
+    [['yes', 'Sí'], ['no', 'No hay']].forEach(([value, label]) => {
+      const option = document.createElement('option'); option.value = value; option.textContent = label; availability.append(option);
+    });
+    availabilityCell.append(availability);
+    const referenceCell = document.createElement('td');
+    const reference = document.createElement('strong'); reference.textContent = item.ref || '-'; referenceCell.append(reference);
+    const nameCell = document.createElement('td'); nameCell.textContent = item.name || '-';
+    const colorCell = document.createElement('td'); colorCell.textContent = item.color || '-';
+    const requestedCell = document.createElement('td'); requestedCell.textContent = String(item.qty || 1);
+    const servedCell = document.createElement('td');
+    const served = document.createElement('input'); served.className = 'served qty'; served.type = 'number'; served.min = '0'; served.max = '100000'; served.value = String(item.qty || 1); servedCell.append(served);
+    const priceCell = document.createElement('td');
+    const price = document.createElement('input'); price.className = 'price money'; price.type = 'number'; price.min = '0'; price.max = '1000000'; price.step = '0.01'; price.value = String(safePrice(item.price)); priceCell.append(price);
+    const subtotalCell = document.createElement('td'); subtotalCell.className = 'subtotal'; subtotalCell.textContent = '0,00 €';
+    row.append(availabilityCell, referenceCell, nameCell, colorCell, requestedCell, servedCell, priceCell, subtotalCell);
+    lines.append(row);
+  });
   calculate();
 };
 const calculate = () => {

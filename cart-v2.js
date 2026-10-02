@@ -1,3 +1,17 @@
+import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  createUserWithEmailAndPassword,
+  deleteUser,
+  getAuth,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  setPersistence,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut
+} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+
 (() => {
 const collapseDuplicatedPage = () => {
   ['.notice', 'header', 'main', 'footer'].forEach(selector => {
@@ -17,18 +31,32 @@ const collapseDuplicatedPage = () => {
 window.setTimeout(collapseDuplicatedPage, 0);
 window.addEventListener('load', collapseDuplicatedPage, { once: true });
 
-const cartRuntimeConfig = window.TRENDY_FIREBASE_CONFIG || { apiKey: 'AIzaSyDqp23klSLZPgaeh_7uDfcBXhT1bgbsVU4', projectId: 'trendy-bag-a6218' };
+const cartRuntimeConfig = window.TRENDY_FIREBASE_CONFIG || {
+  apiKey: 'AIzaSyDqp23klSLZPgaeh_7uDfcBXhT1bgbsVU4',
+  projectId: 'trendy-bag-a6218',
+  authDomain: 'trendy-bag-a6218.firebaseapp.com',
+  storageBucket: 'trendy-bag-a6218.firebasestorage.app',
+  messagingSenderId: '564876869679',
+  appId: '1:564876869679:web:cd02d9c9e27b37945906da'
+};
+const cartFirebaseApp = getApps().length ? getApp() : initializeApp(cartRuntimeConfig);
+const firebaseAuth = getAuth(cartFirebaseApp);
 const SESSION_KEY = 'trendy-auth-session-v2';
 const ADMIN_EMAIL = 'trendybag@hotmail.com';
-const identityUrl = method => `https://identitytoolkit.googleapis.com/v1/accounts:${method}?key=${encodeURIComponent(cartRuntimeConfig.apiKey)}`;
 
 const messages = {
   INVALID_LOGIN_CREDENTIALS: 'El correo o la contraseña no son correctos.',
+  INVALID_CREDENTIAL: 'El correo o la contraseña no son correctos.',
   INVALID_EMAIL: 'El correo electrónico no es válido.',
+  EMAIL_EXISTS: 'Ya existe una cuenta con este correo. Inicia sesión o utiliza “He olvidado mi contraseña”.',
+  EMAIL_ALREADY_IN_USE: 'Ya existe una cuenta con este correo. Inicia sesión o utiliza “He olvidado mi contraseña”.',
+  WEAK_PASSWORD: 'La contraseña debe tener al menos 8 caracteres.',
   USER_DISABLED: 'Esta cuenta está desactivada. Contacta con Trendy Bag.',
   TOO_MANY_ATTEMPTS_TRY_LATER: 'Demasiados intentos. Espera unos minutos y vuelve a probar.',
+  TOO_MANY_REQUESTS: 'Demasiados intentos. Espera unos minutos y vuelve a probar.',
   EMAIL_NOT_FOUND: 'No existe una cuenta con este correo electrónico.',
   NETWORK_ERROR: 'No hay conexión. Comprueba Internet y vuelve a probar.',
+  EMAIL_NOT_VERIFIED: 'Confirma tu correo electrónico antes de iniciar sesión. Te hemos enviado un nuevo enlace.',
   PENDING_APPROVAL: 'Tu solicitud está pendiente de validación por Trendy Bag.'
 };
 
@@ -44,10 +72,39 @@ const api = async (url, options = {}) => {
   return data;
 };
 
-const identity = (method, body) => api(identityUrl(method), {
-  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+const firestoreBase = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cartRuntimeConfig.projectId)}/databases/(default)/documents`;
+const toFirestoreValue = value => {
+  if (value === null || value === undefined) return { nullValue: null };
+  if (typeof value === 'boolean') return { booleanValue: value };
+  if (typeof value === 'number') return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  if (typeof value === 'string') return { stringValue: value };
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(toFirestoreValue) } };
+  return { mapValue: { fields: Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toFirestoreValue(item)])) } };
+};
+const fromFirestoreValue = value => {
+  if (!value || 'nullValue' in value) return null;
+  if ('booleanValue' in value) return value.booleanValue;
+  if ('integerValue' in value) return Number(value.integerValue);
+  if ('doubleValue' in value) return Number(value.doubleValue);
+  if ('stringValue' in value) return value.stringValue;
+  if ('timestampValue' in value) return value.timestampValue;
+  if ('arrayValue' in value) return (value.arrayValue.values || []).map(fromFirestoreValue);
+  if ('mapValue' in value) return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([key, item]) => [key, fromFirestoreValue(item)]));
+  return null;
+};
+const decodeFirestoreDocument = document => document
+  ? Object.fromEntries(Object.entries(document.fields || {}).map(([key, value]) => [key, fromFirestoreValue(value)]))
+  : {};
+const writeFirestoreDocument = (path, data, idToken) => api(`${firestoreBase}/${path}`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+  body: JSON.stringify({ fields: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value)])) })
 });
-const friendly = error => new Error(messages[error?.code || error?.message] || 'No se ha podido completar la operación. Vuelve a intentarlo.');
+const normalizedErrorCode = error => String(error?.code || error?.message || '')
+  .replace(/^auth\//, '')
+  .replaceAll('-', '_')
+  .toUpperCase();
+const friendly = error => new Error(messages[normalizedErrorCode(error)] || 'No se ha podido completar la operación. Vuelve a intentarlo.');
 const clearStored = () => { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); };
 const readStored = () => {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || 'null'); }
@@ -63,16 +120,29 @@ let approved = false;
 let readyResolve;
 const ready = new Promise(resolve => { readyResolve = resolve; });
 const emit = () => window.dispatchEvent(new CustomEvent('trendy-auth-state', { detail: {
-  authenticated: Boolean(session && approved), pending: Boolean(session && !approved), email: session?.email || ''
+  authenticated: Boolean(session && approved), pending: Boolean(session && !approved), email: session?.email || '', uid: session?.uid || ''
 } }));
 
-const approvalStatus = async value => {
-  if (String(value.email || '').toLowerCase() === ADMIN_EMAIL) return true;
+const accountStatus = async value => {
+  if (String(value.email || '').toLowerCase() === ADMIN_EMAIL) return { approved: true, requiresEmailVerification: false };
   try {
     const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cartRuntimeConfig.projectId)}/databases/(default)/documents/users/${encodeURIComponent(value.uid)}`;
     const profile = await api(url, { headers: { Authorization: `Bearer ${value.idToken}` } });
-    return profile?.fields?.approvalStatus?.stringValue === 'approved';
-  } catch { return false; }
+    return {
+      approved: profile?.fields?.approvalStatus?.stringValue === 'approved',
+      requiresEmailVerification: profile?.fields?.requiresEmailVerification?.booleanValue === true
+    };
+  } catch { return { approved: false, requiresEmailVerification: false }; }
+};
+
+const sessionFromUser = async user => {
+  const tokenResult = await user.getIdTokenResult();
+  return {
+    email: user.email || '',
+    uid: user.uid,
+    idToken: tokenResult.token,
+    expiresAt: Date.parse(tokenResult.expirationTime || '') || Date.now() + 55 * 60 * 1000
+  };
 };
 
 window.TrendyAuth = {
@@ -80,25 +150,124 @@ window.TrendyAuth = {
   whenReady() { return ready; },
   async signIn(email, password, remember = true) {
     try {
-      const result = await identity('signInWithPassword', { email: String(email || '').trim(), password, returnSecureToken: true });
-      const next = { email: result.email || email, uid: result.localId, idToken: result.idToken, refreshToken: result.refreshToken, expiresAt: Date.now() + Number(result.expiresIn || 3600) * 1000 };
-      
+      await setPersistence(firebaseAuth, remember ? browserLocalPersistence : browserSessionPersistence);
+      const credential = await signInWithEmailAndPassword(firebaseAuth, String(email || '').trim(), password);
+      const next = await sessionFromUser(credential.user);
+      const status = await accountStatus(next);
+      if (status.requiresEmailVerification && !credential.user.emailVerified) {
+        await sendEmailVerification(credential.user).catch(() => {});
+        await firebaseSignOut(firebaseAuth);
+        const error = new Error('EMAIL_NOT_VERIFIED'); error.code = 'EMAIL_NOT_VERIFIED'; throw error;
+      }
+      if (!status.approved) {
+        await firebaseSignOut(firebaseAuth);
+        const error = new Error('PENDING_APPROVAL'); error.code = 'PENDING_APPROVAL'; throw error;
+      }
       session = next; approved = true; saveStored(next, remember); emit();
       return { user: { email: next.email, uid: next.uid } };
     } catch (error) { clearStored(); session = null; approved = false; emit(); throw friendly(error); }
   },
   async resetPassword(email) {
-    try { await identity('sendOobCode', { requestType: 'PASSWORD_RESET', email: String(email || '').trim() }); }
+    try { await sendPasswordResetEmail(firebaseAuth, String(email || '').trim()); }
     catch (error) { throw friendly(error); }
   },
-  async requestAccess() { return { pending: true }; },
-  async signOut() { clearStored(); session = null; approved = false; emit(); }
+  async getIdToken() {
+    if (!firebaseAuth.currentUser || !session || !approved) return '';
+    const idToken = await firebaseAuth.currentUser.getIdToken();
+    session.idToken = idToken;
+    return idToken;
+  },
+  async requestAccess(profile, password) {
+    const email = String(profile?.email || '').trim().toLowerCase();
+    if (String(password || '').length < 8) throw friendly({ code: 'WEAK_PASSWORD' });
+    let createdUser = null;
+    try {
+      await setPersistence(firebaseAuth, browserSessionPersistence);
+      const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      createdUser = credential.user;
+      const idToken = await createdUser.getIdToken();
+      const pendingProfile = {
+        ...profile,
+        email,
+        approvalStatus: 'pending',
+        requiresEmailVerification: true,
+        requestedAt: new Date().toISOString(),
+        source: 'web'
+      };
+      await writeFirestoreDocument(`users/${encodeURIComponent(createdUser.uid)}`, pendingProfile, idToken);
+      const verificationSent = await sendEmailVerification(createdUser).then(() => true).catch(() => false);
+      await firebaseSignOut(firebaseAuth);
+      session = null;
+      approved = false;
+      clearStored();
+      emit();
+      return { pending: true, uid: createdUser.uid, verificationSent };
+    } catch (error) {
+      if (createdUser) await deleteUser(createdUser).catch(() => {});
+      await firebaseSignOut(firebaseAuth).catch(() => {});
+      session = null; approved = false; clearStored(); emit();
+      throw friendly(error);
+    }
+  },
+  async saveOrder(order) {
+    if (!session || !approved) throw new Error('Debes iniciar sesión como cliente aprobado.');
+    const idToken = await window.TrendyAuth.getIdToken();
+    if (!idToken) throw new Error('La sesión ha caducado. Inicia sesión de nuevo.');
+    const status = await accountStatus({ ...session, idToken });
+    if (!status.approved) {
+      await window.TrendyAuth.signOut();
+      throw new Error('Tu acceso profesional ya no está activo. Contacta con Trendy Bag.');
+    }
+    const profileDocument = await api(`${firestoreBase}/users/${encodeURIComponent(session.uid)}`, {
+      headers: { Authorization: `Bearer ${idToken}` }
+    }).catch(() => null);
+    const customer = decodeFirestoreDocument(profileDocument);
+    const normalizedItems = (order.items || []).map(item => ({
+      reference: item.reference || item.ref || '',
+      name: item.name || '',
+      color: item.color || '',
+      quantity: Number(item.quantity || item.qty || 0),
+      price: item.price == null || Number(item.price) <= 0 ? null : Number(item.price)
+    }));
+    await writeFirestoreDocument(`orders/${encodeURIComponent(order.id)}`, {
+      ...order,
+      items: normalizedItems,
+      customerUid: session.uid,
+      customerEmail: session.email || '',
+      customer,
+      status: 'Recibido',
+      createdAt: new Date().toISOString()
+    }, idToken);
+    return order.id;
+  },
+  async assertApproved() {
+    const idToken = await window.TrendyAuth.getIdToken();
+    if (!idToken || !session) throw new Error('La sesión ha caducado. Inicia sesión de nuevo.');
+    const status = await accountStatus({ ...session, idToken });
+    if (!status.approved) {
+      await window.TrendyAuth.signOut();
+      throw new Error('Tu acceso profesional ya no está activo. Contacta con Trendy Bag.');
+    }
+    return true;
+  },
+  async signOut() { await firebaseSignOut(firebaseAuth).catch(() => {}); clearStored(); session = null; approved = false; emit(); }
 };
 
 (async () => {
-  const stored = readStored();
-  if (stored && Number(stored.expiresAt || 0) > Date.now()) { session = stored; approved = true; }
-  else clearStored();
+  try {
+    await firebaseAuth.authStateReady();
+    if (firebaseAuth.currentUser) {
+      const restored = await sessionFromUser(firebaseAuth.currentUser);
+      const status = await accountStatus(restored);
+      if (status.approved && (!status.requiresEmailVerification || firebaseAuth.currentUser.emailVerified)) {
+        session = restored; approved = true; saveStored(restored, true);
+      } else {
+        await firebaseSignOut(firebaseAuth); clearStored();
+      }
+    } else clearStored();
+  } catch {
+    await firebaseSignOut(firebaseAuth).catch(() => {}); clearStored(); session = null; approved = false;
+  }
   readyResolve(session && approved ? session : null); emit();
 })();
 })();
@@ -112,19 +281,58 @@ window.TrendyAuth = {
     en: { colors: ['Beige', 'Taupe', 'Navy blue', 'Yellow', 'Brown', 'Red', 'Purple', 'Sage green', 'Black'], productGate: 'Only registered customers can view colours and add products to an order.', cartGate: 'Sign in as a registered customer to access the cart.', addGate: 'Sign in as a registered customer to add products.', choose: 'Select a colour.', empty: 'Your order is empty.', units: 'units', orderStart: 'Hello Trendy Bag, I would like to place this trade order:', orderEnd: 'Please confirm availability and trade terms.', added: 'added to order', pending: 'Request registered. Trendy Bag will review the documents and activate your trade access.', emailReady: 'Your email app will now open so you can attach Form 036 and send the documents.', passwordMismatch: 'The two passwords do not match.', remember: 'Remember me on this device', forgot: 'I forgot my password', logout: 'Sign out', enterEmail: 'Enter your email address first.', resetSent: 'If an account exists for that email, you will receive a link to create a new password. Please also check your junk folder.', signedIn: 'Signed in successfully.', signedOut: 'Signed out.' }
   };
   const copy = I18N[lang];
+  const requestButtonCopy = {
+    es: 'Solicitar acceso profesional',
+    ca: 'Sol·licitar accés professional',
+    fr: 'Demander un accès professionnel',
+    en: 'Request trade access'
+  }[lang];
+  const verificationCopy = {
+    es: 'Te hemos enviado un correo para confirmar tu dirección.',
+    ca: 'T’hem enviat un correu per confirmar la teva adreça.',
+    fr: 'Nous vous avons envoyé un e-mail pour confirmer votre adresse.',
+    en: 'We have sent you an email to confirm your address.'
+  }[lang];
+  const requestSavedCopy = {
+    es: 'La solicitud ya aparece en el panel de Trendy Bag. También se abrirá tu correo por si quieres enviar ahora el Modelo 036.',
+    ca: 'La sol·licitud ja apareix al panell de Trendy Bag. També s’obrirà el correu per si vols enviar ara el Model 036.',
+    fr: 'La demande apparaît déjà dans le tableau de bord Trendy Bag. Votre messagerie s’ouvrira également si vous souhaitez envoyer le formulaire 036 maintenant.',
+    en: 'The request already appears in the Trendy Bag dashboard. Your email app will also open if you want to send Form 036 now.'
+  }[lang];
   const documentCopy = {
-    es: ['Modelo 036 *', 'Selecciona el Modelo 036. Al abrirse el correo deberás adjuntar este mismo archivo antes de enviarlo.'],
-    ca: ['Model 036 *', 'Selecciona el Model 036. Quan s’obri el correu hauràs d’adjuntar aquest mateix arxiu abans d’enviar-lo.'],
-    fr: ['Formulaire 036 *', 'Sélectionnez le formulaire 036. Lorsque votre messagerie s’ouvrira, joignez ce même fichier avant l’envoi.'],
-    en: ['Form 036 *', 'Select Form 036. When your email app opens, attach this same file before sending.']
+    es: ['Modelo 036 (opcional en esta fase)', 'El archivo no se sube automáticamente. Si lo seleccionas, adjúntalo manualmente al correo; también puedes enviarlo después.'],
+    ca: ['Model 036 (opcional en aquesta fase)', 'L’arxiu no es puja automàticament. Si el selecciones, adjunta’l manualment al correu; també el pots enviar després.'],
+    fr: ['Formulaire 036 (facultatif à ce stade)', 'Le fichier n’est pas téléversé automatiquement. Si vous le sélectionnez, joignez-le manuellement à l’e-mail ou envoyez-le plus tard.'],
+    en: ['Form 036 (optional at this stage)', 'The file is not uploaded automatically. If selected, attach it manually to the email, or send it later.']
   }[lang];
   const enhancementStyles = document.createElement('style');
   enhancementStyles.textContent = '[hidden]{display:none!important}.document-field{grid-column:1/-1;border:1px dashed #a9a198;background:#fff;padding:18px}.document-field input{border:0!important;padding:8px 0!important;min-height:auto!important}.document-note{font-size:12px;font-weight:400;color:#666;line-height:1.5}.selected-color-label{font-weight:800;color:#e95642;min-height:20px}.modal-trade-price{font-size:20px;font-weight:900;margin:12px 0}.unavailable-message{color:#a52c20;font-weight:800}.category-nav [data-folder].active{border-color:currentColor;font-weight:900}.catalog-tools{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin:0 0 30px;padding:18px;background:#f7f4ef;border:1px solid #e4dfd7}.catalog-tools label{display:grid;gap:7px;font-size:12px;font-weight:800}.catalog-tools input,.catalog-tools select{width:100%;min-height:46px;border:1px solid #cfc9c1;background:#fff;padding:9px 11px}.catalog-results{grid-column:1/-1;margin:0;color:#666;font-size:13px}.cart-summary{padding:15px;background:#f7f4ef;border:1px solid #e4dfd7;margin:14px 0}.cart-summary strong{font-size:22px}.minimum-warning{color:#a52c20;font-weight:800}.send-order[aria-disabled="true"]{opacity:.45;pointer-events:none}@media(max-width:800px){header{height:auto;min-height:64px;padding-bottom:8px;grid-template-columns:1fr auto}.header-socials{display:none}.header-actions{gap:8px}.header-tool{width:38px;height:38px}.category-nav{display:flex!important;grid-column:1/-1;order:3;width:calc(100vw - 32px);gap:22px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:none}.category-nav::-webkit-scrollbar{display:none}.category-nav a{flex:0 0 auto;padding:7px 0}.login-card{height:auto!important;min-height:0;display:block!important;padding:54px 22px 32px}.request-grid{grid-template-columns:1fr}.request-form{padding:18px}}@media(max-width:700px){.catalog-tools{grid-template-columns:1fr}.catalog-results{grid-column:auto}}';
-  enhancementStyles.textContent += '#login-modal.request-mode .login-card{position:relative;max-height:94vh;overflow:auto}#login-modal.request-mode .request-access{position:absolute;inset:0;z-index:5;margin:0;background:#fff;padding:45px;overflow:auto}#login-modal.request-mode .request-access>summary{position:sticky;top:-45px;z-index:2;margin:-45px -45px 24px;padding:18px 45px;background:#f7f4ef;border-bottom:1px solid #e4dfd7;font-weight:800;cursor:pointer}#login-modal.request-mode .modal-close{z-index:8}@media(max-width:700px){#login-modal.request-mode .request-access{padding:45px 20px}#login-modal.request-mode .request-access>summary{top:-45px;margin:-45px -20px 20px;padding:18px 20px}}'; document.head.append(enhancementStyles);
+  enhancementStyles.textContent += '#login-modal.request-mode .login-card{position:relative;max-height:94vh;overflow:auto}#login-modal.request-mode .request-access{position:absolute;inset:0;z-index:5;margin:0;background:#fff;padding:45px;overflow:auto}#login-modal.request-mode .request-access>summary{position:sticky;top:-45px;z-index:2;margin:-45px -45px 24px;padding:18px 45px;background:#f7f4ef;border-bottom:1px solid #e4dfd7;font-weight:800;cursor:pointer}#login-modal.request-mode .modal-close{z-index:8}.trade-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.request-account-button{margin-top:18px}.seo-category-links{background:#f7f4ef}.seo-category-links h2{max-width:760px}.seo-link-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:30px}.seo-link-grid a{display:flex;align-items:center;justify-content:space-between;min-height:64px;padding:16px 18px;background:#fff;border:1px solid #e4dfd7;font-weight:800}.seo-link-grid a:after{content:"→";color:#e95642}@media(max-width:700px){#login-modal.request-mode .request-access{padding:45px 20px}#login-modal.request-mode .request-access>summary{top:-45px;margin:-45px -20px 20px;padding:18px 20px}.trade-actions{display:grid}.trade-actions .button{width:100%;margin-top:0}.seo-link-grid{grid-template-columns:1fr}}'; document.head.append(enhancementStyles);
   [...document.querySelectorAll('.category-nav a[href="#catalogo"]')].forEach((link, index) => {
     if (!link.dataset.folder) link.dataset.folder = ['Novedades', 'Bolsos', 'Viaje', 'Monederos', 'Cinturones', 'Complementos'][index] || 'Novedades';
   });
-  const COLORS = copy.colors;
+  const seoLinks = {
+    es: { title: 'Catálogo mayorista para tiendas', intro: 'Explora las principales familias de bolsos y complementos de Trendy Bag.', links: [['Bolsos al por mayor','/es/categorias/bolsos/'],['Viaje','/es/categorias/viaje/'],['Monederos','/es/categorias/monederos/'],['Cinturones','/es/categorias/cinturones/'],['Complementos','/es/categorias/complementos/'],['Conoce Trendy Bag','/es/empresa/']] },
+    ca: { title: 'Catàleg majorista per a botigues', intro: 'Explora les principals famílies de bosses i complements de Trendy Bag.', links: [['Bosses a l’engròs','/ca/categories/bosses/'],['Viatge','/ca/categories/viatge/'],['Moneders','/ca/categories/moneders/'],['Cinturons','/ca/categories/cinturons/'],['Complements','/ca/categories/complements/'],['Coneix Trendy Bag','/ca/empresa/']] },
+    fr: { title: 'Catalogue de gros pour les boutiques', intro: 'Découvrez les principales familles de sacs et accessoires Trendy Bag.', links: [['Sacs en gros','/fr/categories/sacs/'],['Voyage','/fr/categories/voyage/'],['Portefeuilles','/fr/categories/portefeuilles/'],['Ceintures','/fr/categories/ceintures/'],['Accessoires','/fr/categories/accessoires/'],['Découvrir Trendy Bag','/fr/entreprise/']] },
+    en: { title: 'Wholesale catalogue for retailers', intro: 'Explore the main Trendy Bag wholesale bag and accessory ranges.', links: [['Wholesale bags','/en/categories/bags/'],['Travel','/en/categories/travel/'],['Wallets','/en/categories/wallets/'],['Belts','/en/categories/belts/'],['Accessories','/en/categories/accessories/'],['About Trendy Bag','/en/company/']] }
+  }[lang];
+  if (!document.querySelector('.seo-category-links')) {
+    const linkSection = document.createElement('section');
+    linkSection.className = 'section seo-category-links';
+    linkSection.innerHTML = `<p class="eyebrow">TRENDY BAG B2B</p><h2>${seoLinks.title}</h2><p class="catalog-intro">${seoLinks.intro}</p><nav class="seo-link-grid" aria-label="${seoLinks.title}">${seoLinks.links.map(([label, href]) => `<a href="${href}">${label}</a>`).join('')}</nav>`;
+    document.querySelector('#profesionales')?.before(linkSection);
+  }
+  const COLORS = I18N.es.colors;
+  const canonicalColor = value => {
+    const raw = String(value || '');
+    for (const translation of Object.values(I18N)) {
+      const index = translation.colors.indexOf(raw);
+      if (index >= 0) return COLORS[index];
+    }
+    return raw;
+  };
+  const colorLabel = color => copy.colors[COLORS.indexOf(canonicalColor(color))] || String(color || '');
   const VARIANT_CROPS = {
     MC955: [[72,480,175,160],[252,480,175,160],[430,480,175,160],[608,480,175,160],[5,700,160,170],[172,700,160,170],[340,700,160,170],[508,700,160,170],[676,700,160,170]],
     MC959: [[80,490,168,145],[258,490,164,145],[435,490,166,145],[610,490,165,145],[8,680,158,122],[174,680,158,122],[342,680,158,122],[512,680,163,122],[684,680,159,122]],
@@ -188,14 +396,29 @@ window.TrendyAuth = {
     const messageField = requestGrid.querySelector('textarea[name="message"]')?.closest('label');
     const documentField = document.createElement('label');
     documentField.className = 'document-field';
-    documentField.innerHTML = `${documentCopy[0]}<input name="model036" type="file" accept=".pdf,.jpg,.jpeg,.png" required><span class="document-note">${documentCopy[1]}</span>`;
+    documentField.innerHTML = `${documentCopy[0]}<input name="model036" type="file" accept=".pdf,.jpg,.jpeg,.png"><span class="document-note">${documentCopy[1]}</span>`;
     requestGrid.insertBefore(documentField, messageField || null);
   }
   const requestAccess = loginModal.querySelector('.request-access'); const requestSummary = requestAccess?.querySelector('summary'); if (requestAccess && requestSummary) { const requestTitle = requestSummary.textContent.trim(); const backLabel = { es: '← Volver al inicio de sesión', ca: '← Tornar a l’inici de sessió', fr: '← Retour à la connexion', en: '← Back to sign in' }[lang]; requestAccess.addEventListener('toggle', () => { loginModal.classList.toggle('request-mode', requestAccess.open); requestSummary.textContent = requestAccess.open ? backLabel : requestTitle; if (requestAccess.open) loginModal.querySelector('.login-card').scrollTop = 0; }); } const sheetImage = productModal.querySelector('.modal-image img');
   const colorCanvas = productModal.querySelector('.selected-color-canvas');
   const canvasContext = colorCanvas.getContext('2d');
 
-  let cart = JSON.parse(localStorage.getItem('trendy-bag-order') || '[]');
+  let cart = [];
+  let currentClientUid = '';
+  const cartStorageKey = uid => `trendy-bag-order-${uid}`;
+  const loadClientCart = uid => {
+    if (!uid) return [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(cartStorageKey(uid)) || '[]');
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(item => item && typeof item.ref === 'string' && typeof item.color === 'string')
+        .map(item => ({ ...item, color: canonicalColor(item.color), qty: Math.max(1, Number(item.qty) || 1) }));
+    } catch {
+      localStorage.removeItem(cartStorageKey(uid));
+      return [];
+    }
+  };
+  localStorage.removeItem('trendy-bag-order');
   let selectedProduct = null;
   let selectedColor = '';
   let selectedPreview = '';
@@ -206,12 +429,16 @@ window.TrendyAuth = {
   let colorFilter = '';
   let availabilityFilter = 'all';
   const MINIMUM_ORDER = 100;
-  const isRegisteredClient = () => true;
-  const productSettings = reference => catalogSettings[reference] || {
-    active: true,
-    price: null,
-    colors: Object.fromEntries(COLORS.map(color => [color, true])),
-    folders: {Novedades:true,Bolsos:true}
+  const isRegisteredClient = () => Boolean(authenticatedClient && window.TrendyAuth?.isAuthenticated?.());
+  const productSettings = reference => {
+    const saved = catalogSettings[reference];
+    if (!saved) return {
+      active: true,
+      price: null,
+      colors: Object.fromEntries(COLORS.map(color => [color, true])),
+      folders: {Novedades:true,Bolsos:true}
+    };
+    return { ...saved, price: Number(saved.price) > 0 ? Number(saved.price) : null };
   };
   const safeImageUrl = value => {
     const raw = String(value || '').trim();
@@ -361,7 +588,7 @@ window.TrendyAuth = {
     const tools = document.createElement('div');
     tools.className = 'catalog-tools';
     tools.innerHTML = `<label>Buscar producto<input class="catalog-search" type="search" placeholder="Referencia o nombre"></label>
-      <label>Color<select class="catalog-color"><option value="">Todos los colores</option>${COLORS.map(color => `<option value="${color}">${color}</option>`).join('')}</select></label>
+      <label>Color<select class="catalog-color"><option value="">Todos los colores</option>${COLORS.map(color => `<option value="${color}">${colorLabel(color)}</option>`).join('')}</select></label>
       <label>Disponibilidad<select class="catalog-availability"><option value="all">Todos</option><option value="available">Disponibles</option></select></label>
       <p class="catalog-results"></p>`;
     productGrid.before(tools);
@@ -414,13 +641,17 @@ window.TrendyAuth = {
     if (headerCartCount) headerCartCount.textContent = allowed && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
   };
 
-  window.addEventListener('trendy-auth-state', event => {
-    authenticatedClient = Boolean(event.detail?.authenticated);
+  const applyAuthState = detail => {
+    authenticatedClient = Boolean(detail?.authenticated);
+    currentClientUid = authenticatedClient ? String(detail?.uid || '') : '';
+    cart = currentClientUid ? loadClientCart(currentClientUid) : [];
     const logoutButton = loginModal.querySelector('.logout-button');
     if (logoutButton) logoutButton.hidden = !authenticatedClient;
+    if (!authenticatedClient && cartModal) cartModal.hidden = true;
     updatePrivateControls();
     applyCatalogToPage();
-  });
+  };
+  window.addEventListener('trendy-auth-state', event => applyAuthState(event.detail));
 
   window.addEventListener('trendy-catalog-state', event => {
     catalogSettings = event.detail?.catalog || {};
@@ -429,8 +660,7 @@ window.TrendyAuth = {
   });
 
   window.TrendyAuth?.whenReady?.().then(user => {
-    authenticatedClient = Boolean(user);
-    updatePrivateControls();
+    applyAuthState({ authenticated: Boolean(user), email: user?.email || '', uid: user?.uid || '' });
   });
 
   const openLogin = message => {
@@ -439,6 +669,34 @@ window.TrendyAuth = {
     document.body.style.overflow = 'hidden';
     loginModal.querySelector('input').focus();
   };
+  const openRequestAccess = () => {
+    openLogin('');
+    if (requestAccess) requestAccess.open = true;
+    requestAccess?.querySelector('input')?.focus();
+  };
+  document.querySelectorAll('a[href="#profesionales"]').forEach(link => {
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      openRequestAccess();
+    });
+  });
+  const tradeContact = document.querySelector('#profesionales > div:last-child');
+  if (tradeContact && !tradeContact.querySelector('.request-account-button')) {
+    let actions = tradeContact.querySelector('.trade-actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.className = 'trade-actions';
+      const whatsappButton = tradeContact.querySelector('.whatsapp');
+      if (whatsappButton) actions.append(whatsappButton);
+      tradeContact.append(actions);
+    }
+    const requestButton = document.createElement('button');
+    requestButton.type = 'button';
+    requestButton.className = 'button light request-account-button';
+    requestButton.textContent = requestButtonCopy;
+    requestButton.addEventListener('click', openRequestAccess);
+    actions.append(requestButton);
+  }
 
   const closeModal = modal => {
     modal.hidden = true;
@@ -596,7 +854,7 @@ window.TrendyAuth = {
     sheetImage.hidden = false;
     colorCanvas.hidden = true;
     const label = productModal.querySelector('.selected-color-label');
-    if (label) label.textContent = `${copy.choose.replace('.', '')}: ${COLORS[colorIndex]}`;
+    if (label) label.textContent = `${copy.choose.replace('.', '')}: ${colorLabel(COLORS[colorIndex])}`;
   };
 
   const openProduct = card => {
@@ -635,7 +893,7 @@ window.TrendyAuth = {
       const button = document.createElement('button');
       button.className = 'color-choice';
       button.type = 'button';
-      button.textContent = color;
+      button.textContent = colorLabel(color);
       button.addEventListener('click', () => {
         selectedColor = color;
         colorList.querySelectorAll('button').forEach(item => item.classList.remove('active'));
@@ -661,7 +919,7 @@ window.TrendyAuth = {
   });
 
   const saveCart = () => {
-    localStorage.setItem('trendy-bag-order', JSON.stringify(cart));
+    if (currentClientUid) localStorage.setItem(cartStorageKey(currentClientUid), JSON.stringify(cart));
     if (floatButton) {
       floatButton.hidden = !isRegisteredClient() || !cart.length;
       const floatCount = floatButton.querySelector('span');
@@ -670,12 +928,13 @@ window.TrendyAuth = {
     if (headerCartCount) headerCartCount.textContent = isRegisteredClient() && cart.length ? cart.reduce((total, item) => total + item.qty, 0) : '';
   };
 
-  const orderText = () => {
+  const orderText = orderId => {
     const lines = cart.map(item => {
       const unit = Number(item.price) > 0 ? ` × ${window.TrendyCatalog?.formatPrice?.(item.price) || item.price.toFixed(2) + ' €'}` : '';
-      return `${item.ref} - ${item.name} - ${item.color}: ${item.qty} ${copy.units}${unit}`;
+      return `${item.ref} - ${item.name} - ${colorLabel(item.color)}: ${item.qty} ${copy.units}${unit}`;
     }).join('\n');
     const orderData = btoa(unescape(encodeURIComponent(JSON.stringify({
+      id: orderId || '',
       createdAt: new Date().toISOString(),
       items: cart.map(({ ref, name, color, qty, price }) => ({ ref, name, color, qty, price }))
     }))));
@@ -695,7 +954,7 @@ window.TrendyAuth = {
     saveCart();
     const lines = cartModal.querySelector('.cart-lines');
     lines.innerHTML = cart.length
-      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${item.color}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${item.color}</span> · ${item.qty} unidades${item.price == null ? '' : `<br><strong>${window.TrendyCatalog?.formatPrice?.(item.price * item.qty) || (item.price * item.qty).toFixed(2) + ' €'} IVA no incluido</strong>`}</div></div>`).join('')
+      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${colorLabel(item.color)}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${colorLabel(item.color)}</span> · ${item.qty} unidades${item.price == null ? '' : `<br><strong>${window.TrendyCatalog?.formatPrice?.(item.price * item.qty) || (item.price * item.qty).toFixed(2) + ' €'} IVA no incluido</strong>`}</div></div>`).join('')
       : `<p class="empty">${copy.empty}</p>`;
 
     lines.querySelectorAll('button').forEach(button => {
@@ -761,7 +1020,7 @@ window.TrendyAuth = {
     productModal.querySelector('.quantity input').value = 1;
     const addButton = productModal.querySelector('.add-selected');
     const originalLabel = addButton.textContent;
-    addButton.textContent = `${selectedColor} ${copy.added} ✓`;
+    addButton.textContent = `${colorLabel(selectedColor)} ${copy.added} ✓`;
     addButton.classList.add('added');
     window.setTimeout(() => {
       addButton.textContent = originalLabel;
@@ -824,8 +1083,9 @@ window.TrendyAuth = {
     }
     submit.disabled = true;
     feedback.textContent = 'Registrando solicitud…';
+    let accessResult;
     try {
-      await window.TrendyAuth.requestAccess({
+      accessResult = await window.TrendyAuth.requestAccess({
         company: data.get('company'),
         taxId: data.get('taxId'),
         contact: data.get('contact'),
@@ -841,6 +1101,7 @@ window.TrendyAuth = {
       submit.disabled = false;
       return;
     }
+    const documentName = data.get('model036')?.name || '';
     const body = [
       'SOLICITUD DE USUARIO PROFESIONAL - TRENDY BAG',
       '',
@@ -852,13 +1113,13 @@ window.TrendyAuth = {
       `Ciudad y país: ${data.get('location')}`,
       `Tipo de negocio: ${data.get('business')}`,
       `Web o Instagram: ${data.get('website') || '-'}`,
-      `Modelo 036 seleccionado para adjuntar: ${data.get('model036')?.name || 'NO SELECCIONADO'}`,
+      `Modelo 036 seleccionado para adjuntar: ${documentName || 'Se enviará más adelante'}`,
       '',
       `Mensaje: ${data.get('message') || '-'}`,
       '',
-      'IMPORTANTE: adjuntar el archivo Modelo 036 a este correo antes de enviarlo.'
+      documentName ? 'IMPORTANTE: adjuntar el archivo Modelo 036 a este correo antes de enviarlo.' : 'El Modelo 036 se enviará posteriormente.'
     ].join('\n');
-    feedback.textContent = `${copy.pending} ${copy.emailReady}`;
+    feedback.textContent = `${copy.pending} ${accessResult?.verificationSent ? verificationCopy : ''} ${requestSavedCopy}`.replace(/\s+/g, ' ').trim();
     form.reset();
     submit.disabled = false;
     window.location.href = `mailto:trendybag@hotmail.com?subject=${encodeURIComponent('Solicitud de usuario profesional - ' + data.get('company'))}&body=${encodeURIComponent(body)}`;
@@ -877,19 +1138,25 @@ window.TrendyAuth = {
     const originalLabel = link.textContent;
     link.textContent = 'Registrando pedido…';
     const whatsappWindow = window.open('about:blank', '_blank');
-    const orderId = `TB-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${String(Date.now()).slice(-5)}`;
+    const randomPart = globalThis.crypto?.randomUUID
+      ? globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`.toUpperCase();
+    const orderId = `TB-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomPart}`;
     const subtotal = Number(link.dataset.subtotal) || 0;
     try {
-      await window.TrendyData?.saveOrder?.({
+      const orderPayload = {
         id: orderId,
         items: cart.map(({ ref, name, color, qty, price }) => ({ ref, name, color, qty, price })),
         subtotal,
         minimumOrder: MINIMUM_ORDER
-      });
+      };
+      await window.TrendyAuth.assertApproved();
+      if (window.TrendyData?.saveOrder) await window.TrendyData.saveOrder(orderPayload);
+      else await window.TrendyAuth.saveOrder(orderPayload);
       const totalLine = link.dataset.priced === 'true'
         ? `Total IVA no incluido: ${subtotal.toFixed(2)} €`
         : 'Precios pendientes de confirmación por Trendy Bag.';
-      const text = `${orderText()}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;
+      const text = `${orderText(orderId)}\n\nNúmero de pedido: ${orderId}\n${totalLine}`;
       const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
       if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
       else window.location.href = whatsappUrl;

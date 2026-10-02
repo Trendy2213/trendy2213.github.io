@@ -45,10 +45,14 @@ profileModal.innerHTML = `<div class="modal-card client-profile-card">
     <button class="button dark wide" type="submit">Guardar ficha</button>
   </form>
   <section class="client-orders" hidden><p>Cargando pedidos…</p></section>
+  <button class="button light profile-logout" type="button"></button>
 </div>`;
 document.body.append(profileModal);
+profileModal.querySelector('.profile-logout').textContent = ({
+  es: 'Cerrar sesión', ca: 'Tancar sessió', fr: 'Se déconnecter', en: 'Sign out'
+})[document.documentElement.lang] || 'Cerrar sesión';
 const style = document.createElement('style');
-style.textContent = `.client-profile-card{display:block!important;width:min(820px,96vw)!important;padding:48px;max-height:94vh;overflow:auto}.client-profile-card h2{font-size:42px;margin:10px 0}.client-account-tabs{display:flex;gap:8px;margin:22px 0;border-bottom:1px solid #ddd5cb}.client-account-tabs button{border:0;background:none;padding:12px 15px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent}.client-account-tabs button.active{border-color:#171717}.client-profile-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:24px}.client-profile-form label{display:grid;gap:7px;font-size:13px;font-weight:800}.client-profile-form input{width:100%;min-height:48px;border:1px solid #cfc9c1;padding:10px 12px}.client-profile-form .wide{grid-column:1/-1}.profile-feedback{min-height:18px}.client-orders{display:grid;gap:12px}.client-order{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}.client-order-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.client-order-items{margin:12px 0 0;padding-left:18px;color:#555}.client-order-status{display:inline-flex;padding:6px 10px;background:#e9e0d2;font-size:12px;font-weight:900}.client-order-total{font-size:20px;font-weight:900}.client-order-quote{margin-top:15px;padding:15px;border:1px solid #ddd5cb;background:#fff}.quote-response-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.quote-response-actions button{border:1px solid #171717;background:#fff;padding:10px 14px;font-weight:800;cursor:pointer}.quote-response-actions .accept-quote{background:#171717;color:#fff}.quote-response-feedback{min-height:18px;font-size:13px;font-weight:700}@media(max-width:700px){.client-profile-card{padding:50px 20px 28px}.client-profile-form{grid-template-columns:1fr}.client-profile-form .wide{grid-column:auto}.client-order-head{display:grid}}`;
+style.textContent = `.client-profile-card{display:block!important;width:min(820px,96vw)!important;padding:48px;max-height:94vh;overflow:auto}.client-profile-card h2{font-size:42px;margin:10px 0}.client-account-tabs{display:flex;gap:8px;margin:22px 0;border-bottom:1px solid #ddd5cb}.client-account-tabs button{border:0;background:none;padding:12px 15px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent}.client-account-tabs button.active{border-color:#171717}.client-profile-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:24px}.client-profile-form label{display:grid;gap:7px;font-size:13px;font-weight:800}.client-profile-form input{width:100%;min-height:48px;border:1px solid #cfc9c1;padding:10px 12px}.client-profile-form .wide{grid-column:1/-1}.profile-feedback{min-height:18px}.client-orders{display:grid;gap:12px}.client-order{border:1px solid #ddd5cb;padding:18px;background:#faf8f5}.client-order-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.client-order-items{margin:12px 0 0;padding-left:18px;color:#555}.client-order-status{display:inline-flex;padding:6px 10px;background:#e9e0d2;font-size:12px;font-weight:900}.client-order-total{font-size:20px;font-weight:900}.client-order-quote{margin-top:15px;padding:15px;border:1px solid #ddd5cb;background:#fff}.quote-response-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.quote-response-actions button{border:1px solid #171717;background:#fff;padding:10px 14px;font-weight:800;cursor:pointer}.quote-response-actions .accept-quote{background:#171717;color:#fff}.quote-response-feedback{min-height:18px;font-size:13px;font-weight:700}.profile-logout{width:100%;margin-top:24px}@media(max-width:700px){.client-profile-card{padding:50px 20px 28px}.client-profile-form{grid-template-columns:1fr}.client-profile-form .wide{grid-column:auto}.client-order-head{display:grid}}`;
 document.head.append(style);
 
 const form = profileModal.querySelector('form');
@@ -59,6 +63,10 @@ const closeProfile = () => {
 profileModal.querySelector('.modal-close').addEventListener('click', closeProfile);
 profileModal.addEventListener('click', event => {
   if (event.target === profileModal) closeProfile();
+});
+profileModal.querySelector('.profile-logout').addEventListener('click', async () => {
+  await window.TrendyAuth?.signOut?.();
+  closeProfile();
 });
 
 const loadProfile = async () => {
@@ -82,6 +90,11 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character =>
 const formatMoney = value => Number(value || 0).toLocaleString('es-ES', {
   style: 'currency', currency: 'EUR', minimumFractionDigits: 2
 });
+const timestampMillis = value => value?.toMillis?.() || Date.parse(value || '') || 0;
+const formatOrderDate = value => {
+  const milliseconds = timestampMillis(value);
+  return milliseconds ? new Date(milliseconds).toLocaleDateString('es-ES') : 'Pedido enviado';
+};
 const loadMyOrders = async () => {
   const box = profileModal.querySelector('.client-orders');
   if (!user) return;
@@ -93,10 +106,10 @@ const loadMyOrders = async () => {
       limit(100)
     ));
     const orders = snapshot.docs.map(item => ({ id: item.id, ...item.data() }))
-      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      .sort((a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt));
     box.innerHTML = orders.length ? orders.map(order => `<article class="client-order">
       <div class="client-order-head">
-        <div><strong>${escapeHtml(order.id)}</strong><br><small>${order.createdAt?.toDate?.().toLocaleDateString('es-ES') || 'Pedido enviado'}</small></div>
+        <div><strong>${escapeHtml(order.id)}</strong><br><small>${formatOrderDate(order.createdAt)}</small></div>
         <span class="client-order-status">${escapeHtml(order.status || 'Recibido')}</span>
         <span class="client-order-total">${formatMoney(order.subtotal)} IVA no incluido</span>
       </div>
@@ -191,8 +204,9 @@ window.TrendyData = {
     } catch {}
   },
   async saveOrder(order) {
-    if (!user) throw new Error('Debes iniciar sesión.');
-    const profileSnapshot = await getDoc(doc(db, 'users', user.uid));
+    const activeUser = auth.currentUser || user;
+    if (!activeUser) throw new Error('Debes iniciar sesión.');
+    const profileSnapshot = await getDoc(doc(db, 'users', activeUser.uid));
     const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
     const normalizedItems = (order.items || []).map(item => ({
       reference: item.reference || item.ref || '',
@@ -202,7 +216,7 @@ window.TrendyData = {
       price: item.price == null ? null : Number(item.price)
     }));
     await setDoc(doc(db, 'orders', order.id), {
-      ...order, items: normalizedItems, customerUid: user.uid, customerEmail: user.email || '',
+      ...order, items: normalizedItems, customerUid: activeUser.uid, customerEmail: activeUser.email || '',
       customer: profile, status: 'Recibido', createdAt: serverTimestamp()
     });
     return order.id;
@@ -224,12 +238,13 @@ window.TrendyData = {
     if (!user || user.email?.toLowerCase() !== ADMIN) throw new Error('No autorizado');
     const [users, orders, events] = await Promise.all([
       getDocs(query(collection(db, 'users'), limit(250))),
-      getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(250))),
+      getDocs(query(collection(db, 'orders'), limit(250))),
       getDocs(query(collection(db, 'analytics'), orderBy('createdAt', 'desc'), limit(1000)))
     ]);
     return {
       users: users.docs.map(item => ({ id: item.id, ...item.data() })),
-      orders: orders.docs.map(item => ({ id: item.id, ...item.data() })),
+      orders: orders.docs.map(item => ({ id: item.id, ...item.data() }))
+        .sort((a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt)),
       events: events.docs.map(item => ({ id: item.id, ...item.data() }))
     };
   },

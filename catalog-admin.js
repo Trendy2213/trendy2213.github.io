@@ -89,7 +89,7 @@ const fromFirestoreValue = value => {
 };
 const decodeDocument = document => document ? Object.fromEntries(Object.entries(document.fields || {}).map(([key, value]) => [key, fromFirestoreValue(value)])) : null;
 const firestoreRequest = async (path, options = {}) => {
-  const idToken = window.TrendyAuth?.getIdToken?.() || '';
+  const idToken = await window.TrendyAuth?.getIdToken?.() || '';
   if (!idToken) throw new Error('Inicia sesión de nuevo como administrador.');
   const response = await fetch(`${firestoreBase}/${path}`, {
     ...options,
@@ -127,6 +127,15 @@ const publicRestListCollection = async path => {
     data: decodeDocument(document)
   }));
 };
+const publicCatalogFor = products => Object.fromEntries(Object.entries(products || {}).map(([reference, product]) => {
+  const { price, ...publicProduct } = product || {};
+  return [reference, publicProduct];
+}));
+const staticPublicCatalog = async () => {
+  const response = await fetch('/catalog-public.json?v=20260922privacy1', { cache: 'no-cache' });
+  if (!response.ok) throw new Error('No se pudo cargar el catálogo público de respaldo.');
+  return response.json();
+};
 
 const mergeCatalog = remote => {
   references = [...new Set([...BASE_REFERENCES, ...Object.keys(remote || {})])];
@@ -135,7 +144,9 @@ const mergeCatalog = remote => {
   const saved = remote?.[reference] || {};
   return [reference, {
     active: saved.active !== false,
-    price: Number.isFinite(Number(saved.price)) && saved.price !== '' ? Number(saved.price) : null,
+    price: saved.price !== null && saved.price !== undefined && saved.price !== '' && Number(saved.price) > 0
+      ? Number(saved.price)
+      : null,
     name: saved.name || '',
     measures: saved.measures || '',
     image: productImages[reference] || saved.image || '',
@@ -156,6 +167,10 @@ const money = value => Number(value).toLocaleString('es-ES', {
   currency: 'EUR',
   minimumFractionDigits: 2
 });
+const formatDate = value => {
+  const milliseconds = value?.toMillis?.() || Date.parse(value || '') || 0;
+  return milliseconds ? new Date(milliseconds).toLocaleDateString('es-ES') : '';
+};
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[character]);
@@ -410,9 +425,9 @@ const injectAdminInterface = () => {
         button.textContent = 'Preparar presupuesto';
         row.cells[0]?.append(document.createElement('br'), button);
       });
-      clientsBox.innerHTML = `<h3>Fichas de clientes</h3><button class="button light admin-export export-clients" type="button">Descargar clientes CSV</button>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Datos fiscales</th><th>Acceso</th></tr></thead><tbody>${data.users.map(client => {
+      clientsBox.innerHTML = `<h3>Fichas de clientes</h3><p class="admin-help">Las solicitudes nuevas aparecen aquí aunque el cliente no llegue a enviar el correo adicional.</p><button class="button light admin-export export-clients" type="button">Descargar clientes CSV</button>${data.users.length ? `<table class="admin-table"><thead><tr><th>Empresa</th><th>Contacto</th><th>Solicitud</th><th>Acceso</th></tr></thead><tbody>${data.users.map(client => {
         const status = client.approvalStatus || 'pending';
-        return `<tr data-client-id="${escapeHtml(client.id)}"><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}</td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}</td><td>${escapeHtml(client.taxId)}<br>${escapeHtml([client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td><td><span class="client-access-status">${status === 'approved' ? 'Aprobado' : status === 'rejected' ? 'Rechazado' : 'Pendiente'}</span><br><select class="client-approval" data-client-id="${escapeHtml(client.id)}" data-previous="${status}" aria-label="Acceso de ${escapeHtml(client.company || client.email)}"><option value="pending" ${status === 'pending' ? 'selected' : ''}>Pendiente</option><option value="approved" ${status === 'approved' ? 'selected' : ''}>Aprobado</option><option value="rejected" ${status === 'rejected' ? 'selected' : ''}>Rechazado</option></select></td></tr>`;
+        return `<tr data-client-id="${escapeHtml(client.id)}"><td><strong>${escapeHtml(client.company || 'Sin completar')}</strong><br>${escapeHtml(client.email)}<br><small>${escapeHtml(client.taxId)}</small></td><td>${escapeHtml(client.contact)}<br>${escapeHtml(client.phone)}<br>${escapeHtml(client.location || [client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '))}</td><td>${escapeHtml(client.business || 'Tipo no indicado')}<br>${client.website ? `${escapeHtml(client.website)}<br>` : ''}<small>${escapeHtml(client.message || 'Sin mensaje')}</small><br><small>${formatDate(client.requestedAt)}</small></td><td><span class="client-access-status">${status === 'approved' ? 'Aprobado' : status === 'rejected' ? 'Rechazado' : 'Pendiente'}</span><br><select class="client-approval" data-client-id="${escapeHtml(client.id)}" data-previous="${status}" aria-label="Acceso de ${escapeHtml(client.company || client.email)}"><option value="pending" ${status === 'pending' ? 'selected' : ''}>Pendiente</option><option value="approved" ${status === 'approved' ? 'selected' : ''}>Aprobado</option><option value="rejected" ${status === 'rejected' ? 'selected' : ''}>Rechazado</option></select></td></tr>`;
       }).join('')}</tbody></table>` : '<p>Todavía no hay fichas de clientes guardadas.</p>'}`;
       clientsBox._clients = data.users;
       const productViews = data.events.filter(event => event.type === 'product_view');
@@ -448,7 +463,7 @@ const injectAdminInterface = () => {
       const rows = [['Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono', 'Subtotal IVA no incluido', 'Estado']];
       (event.currentTarget._orders || []).forEach(order => rows.push([
         order.id,
-        order.createdAt?.toDate?.().toLocaleDateString('es-ES') || '',
+        formatDate(order.createdAt),
         order.customer?.company || '',
         order.customerEmail || order.customer?.email || '',
         order.customer?.phone || '',
@@ -480,10 +495,11 @@ const injectAdminInterface = () => {
   });
   modal.querySelector('.admin-clients-list').addEventListener('click', event => {
     if (!event.target.closest('.export-clients')) return;
-    const rows = [['Empresa', 'CIF / NIF', 'Contacto', 'Email', 'Teléfono', 'Dirección', 'CP', 'Ciudad', 'País']];
+    const rows = [['Empresa', 'CIF / NIF', 'Contacto', 'Email', 'Teléfono', 'Ubicación', 'Tipo de negocio', 'Web / Instagram', 'Mensaje', 'Solicitud', 'Acceso']];
     (event.currentTarget._clients || []).forEach(client => rows.push([
       client.company || '', client.taxId || '', client.contact || '', client.email || '', client.phone || '',
-      client.address || '', client.postalCode || '', client.city || '', client.country || ''
+      client.location || [client.address, client.postalCode, client.city, client.country].filter(Boolean).join(', '),
+      client.business || '', client.website || '', client.message || '', formatDate(client.requestedAt), client.approvalStatus || 'pending'
     ]));
     downloadCsv(`clientes-trendy-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   });
@@ -528,7 +544,11 @@ const injectAdminInterface = () => {
           folders: Object.fromEntries([...section.querySelectorAll('[data-folder]')].map(input => [input.dataset.folder, input.checked]))
         };
       }
-      await restSetDoc('catalog/settings', { products: next, updatedAt: new Date().toISOString() });
+      const updatedAt = new Date().toISOString();
+      await Promise.all([
+        restSetDoc('catalog/settings', { products: next, updatedAt }),
+        restSetDoc('catalog/public', { products: publicCatalogFor(next), updatedAt })
+      ]);
       catalog = mergeCatalog(next);
       emitCatalog();
       feedback.textContent = 'Cambios guardados y publicados.';
@@ -556,12 +576,13 @@ const handleAuthState = async detail => {
   unsubscribeImages = null;
   if (!detail?.authenticated) {
     try {
-      const [settings, images] = await Promise.all([
-        publicRestGetDoc('catalog/settings'),
+      const [settings, fallback, images] = await Promise.all([
+        publicRestGetDoc('catalog/public').catch(() => null),
+        staticPublicCatalog().catch(() => null),
         publicRestListCollection('productImages')
       ]);
       productImages = Object.fromEntries(images.map(item => [item.id, item.data?.dataUrl || '']).filter(([, image]) => image));
-      catalog = mergeCatalog(settings?.products || null);
+      catalog = mergeCatalog(settings?.products || fallback?.products || null);
     } catch (error) {
       console.error(error);
       productImages = {};
