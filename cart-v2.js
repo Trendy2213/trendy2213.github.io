@@ -105,15 +105,10 @@ const normalizedErrorCode = error => String(error?.code || error?.message || '')
   .replaceAll('-', '_')
   .toUpperCase();
 const friendly = error => new Error(messages[normalizedErrorCode(error)] || 'No se ha podido completar la operación. Vuelve a intentarlo.');
+// Firebase Auth already persists and refreshes the session securely. Remove the
+// legacy copy of the ID token from Web Storage so an injected script cannot read it.
 const clearStored = () => { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); };
-const readStored = () => {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || 'null'); }
-  catch { return null; }
-};
-const saveStored = (session, remember) => {
-  clearStored();
-  (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(session));
-};
+const saveStored = () => clearStored();
 
 let session = null;
 let approved = false;
@@ -281,6 +276,12 @@ window.TrendyAuth = {
     en: { colors: ['Beige', 'Taupe', 'Navy blue', 'Yellow', 'Brown', 'Red', 'Purple', 'Sage green', 'Black'], productGate: 'Only registered customers can view colours and add products to an order.', cartGate: 'Sign in as a registered customer to access the cart.', addGate: 'Sign in as a registered customer to add products.', choose: 'Select a colour.', empty: 'Your order is empty.', units: 'units', orderStart: 'Hello Trendy Bag, I would like to place this trade order:', orderEnd: 'Please confirm availability and trade terms.', added: 'added to order', pending: 'Request registered. Trendy Bag will review the documents and activate your trade access.', emailReady: 'Your email app will now open so you can attach Form 036 and send the documents.', passwordMismatch: 'The two passwords do not match.', remember: 'Remember me on this device', forgot: 'I forgot my password', logout: 'Sign out', enterEmail: 'Enter your email address first.', resetSent: 'If an account exists for that email, you will receive a link to create a new password. Please also check your junk folder.', signedIn: 'Signed in successfully.', signedOut: 'Signed out.' }
   };
   const copy = I18N[lang];
+  const catalogCopy = {
+    es: { search: 'Buscar producto', placeholder: 'Referencia o nombre', color: 'Color', allColors: 'Todos los colores', availability: 'Disponibilidad', all: 'Todos', available: 'Disponibles', product: 'producto', products: 'productos', collection: 'Colección', hint: 'Pulsa la foto para pedir', details: 'Ver ficha', noColors: 'Este producto no tiene colores disponibles actualmente.', unavailable: 'Este producto o color ya no está disponible.', remove: 'Eliminar', vat: 'IVA no incluido' },
+    ca: { search: 'Cercar producte', placeholder: 'Referència o nom', color: 'Color', allColors: 'Tots els colors', availability: 'Disponibilitat', all: 'Tots', available: 'Disponibles', product: 'producte', products: 'productes', collection: 'Col·lecció', hint: 'Prem la foto per demanar', details: 'Veure fitxa', noColors: 'Aquest producte no té colors disponibles actualment.', unavailable: 'Aquest producte o color ja no està disponible.', remove: 'Eliminar', vat: 'IVA no inclòs' },
+    fr: { search: 'Rechercher un produit', placeholder: 'Référence ou nom', color: 'Couleur', allColors: 'Toutes les couleurs', availability: 'Disponibilité', all: 'Tous', available: 'Disponibles', product: 'produit', products: 'produits', collection: 'Collection', hint: 'Cliquez sur la photo pour commander', details: 'Voir la fiche', noColors: 'Ce produit ne dispose actuellement d’aucune couleur.', unavailable: 'Ce produit ou cette couleur n’est plus disponible.', remove: 'Supprimer', vat: 'HT' },
+    en: { search: 'Search products', placeholder: 'Reference or name', color: 'Colour', allColors: 'All colours', availability: 'Availability', all: 'All', available: 'Available', product: 'product', products: 'products', collection: 'Collection', hint: 'Click the photo to order', details: 'View details', noColors: 'This product currently has no available colours.', unavailable: 'This product or colour is no longer available.', remove: 'Remove', vat: 'VAT excluded' }
+  }[lang];
   const requestButtonCopy = {
     es: 'Solicitar acceso profesional',
     ca: 'Sol·licitar accés professional',
@@ -316,6 +317,12 @@ window.TrendyAuth = {
     ca: { title: 'Catàleg majorista per a botigues', intro: 'Explora les principals famílies de bosses i complements de Trendy Bag.', links: [['Bosses a l’engròs','/ca/categories/bosses/'],['Viatge','/ca/categories/viatge/'],['Moneders','/ca/categories/moneders/'],['Cinturons','/ca/categories/cinturons/'],['Complements','/ca/categories/complements/'],['Coneix Trendy Bag','/ca/empresa/']] },
     fr: { title: 'Catalogue de gros pour les boutiques', intro: 'Découvrez les principales familles de sacs et accessoires Trendy Bag.', links: [['Sacs en gros','/fr/categories/sacs/'],['Voyage','/fr/categories/voyage/'],['Portefeuilles','/fr/categories/portefeuilles/'],['Ceintures','/fr/categories/ceintures/'],['Accessoires','/fr/categories/accessoires/'],['Découvrir Trendy Bag','/fr/entreprise/']] },
     en: { title: 'Wholesale catalogue for retailers', intro: 'Explore the main Trendy Bag wholesale bag and accessory ranges.', links: [['Wholesale bags','/en/categories/bags/'],['Travel','/en/categories/travel/'],['Wallets','/en/categories/wallets/'],['Belts','/en/categories/belts/'],['Accessories','/en/categories/accessories/'],['About Trendy Bag','/en/company/']] }
+  }[lang];
+  const passwordCopy = {
+    es: ['Contraseña de acceso *', 'Repetir contraseña *'],
+    ca: ['Contrasenya d’accés *', 'Repetir contrasenya *'],
+    en: ['Access password *', 'Repeat password *'],
+    fr: ['Mot de passe d’accès *', 'Répéter le mot de passe *']
   }[lang];
   if (!document.querySelector('.seo-category-links')) {
     const linkSection = document.createElement('section');
@@ -386,9 +393,9 @@ window.TrendyAuth = {
   if (requestGrid && !requestGrid.querySelector('[name="requestPassword"]')) {
     const passwordFields = document.createDocumentFragment();
     const passwordLabel = document.createElement('label');
-    passwordLabel.innerHTML = `Contraseña de acceso *<input name="requestPassword" type="password" minlength="8" autocomplete="new-password" required>`;
+    passwordLabel.innerHTML = `${passwordCopy[0]}<input name="requestPassword" type="password" minlength="8" autocomplete="new-password" required>`;
     const confirmLabel = document.createElement('label');
-    confirmLabel.innerHTML = `Repetir contraseña *<input name="requestPasswordConfirm" type="password" minlength="8" autocomplete="new-password" required>`;
+    confirmLabel.innerHTML = `${passwordCopy[1]}<input name="requestPasswordConfirm" type="password" minlength="8" autocomplete="new-password" required>`;
     passwordFields.append(passwordLabel, confirmLabel);
     requestGrid.prepend(passwordFields);
   }
@@ -470,20 +477,26 @@ window.TrendyAuth = {
     Object.entries(catalogSettings).forEach(([rawReference, settings]) => {
       const reference = String(rawReference || '').trim().toUpperCase();
       if (!reference || renderedReferences.has(reference)) return;
+      const pageInfo = window.TrendyProductPages?.[reference];
+      const localizedName = pageInfo?.name?.[lang] || settings.name || reference;
       const imageUrl = new URL(`/assets/catalogo/${encodeURIComponent(reference)}.webp`, location.origin).href;
       const card = document.createElement('article');
       card.className = 'product';
       card.dataset.reference = reference;
-      card.dataset.name = settings.name || reference;
+      card.dataset.name = localizedName;
       card.dataset.dynamic = 'true';
       const imageButton = document.createElement('button');
       imageButton.className = 'product-image';
       imageButton.type = 'button';
-      imageButton.setAttribute('aria-label', settings.name || reference);
+      imageButton.setAttribute('aria-label', localizedName);
       const image = document.createElement('img');
       image.src = imageUrl;
-      image.alt = settings.name || reference;
+      image.alt = localizedName;
       image.loading = 'lazy';
+      image.decoding = 'async';
+      image.width = 1254;
+      image.height = 1254;
+      image.sizes = '(max-width: 800px) 100vw, 33vw';
       imageButton.append(image);
       const productCopy = document.createElement('div');
       productCopy.className = 'product-copy';
@@ -491,14 +504,21 @@ window.TrendyAuth = {
       ref.className = 'reference';
       ref.textContent = reference;
       const title = document.createElement('h3');
-      title.textContent = settings.name || reference;
+      title.textContent = localizedName;
       const measures = document.createElement('p');
       measures.className = 'measure';
       measures.textContent = settings.measures || '';
       const hint = document.createElement('p');
       hint.className = 'product-hint';
-      hint.textContent = 'Pulsa la foto para pedir';
+      hint.textContent = catalogCopy.hint;
       productCopy.append(ref, title, measures, hint);
+      if (pageInfo?.url?.[lang]) {
+        const details = document.createElement('a');
+        details.className = 'product-details-link';
+        details.href = pageInfo.url[lang];
+        details.textContent = catalogCopy.details;
+        productCopy.append(details);
+      }
       card.append(imageButton, productCopy);
       grid.append(card);
       renderedReferences.add(reference);
@@ -517,7 +537,7 @@ window.TrendyAuth = {
     const value = String(reference || '').trim().toUpperCase();
     return value.match(/^[A-Z]+/)?.[0] || value.match(/^\d{3}/)?.[0] || 'OTROS';
   };
-  const familyLabel = family => family.startsWith('REF:') ? `Colección ${family.slice(4)}` : family;
+  const familyLabel = family => family.startsWith('REF:') ? `${catalogCopy.collection} ${family.slice(4)}` : family;
   const familyForProduct = reference => `REF:${referenceFamily(reference)}`;
 
   const applyCatalogToPage = () => {
@@ -526,6 +546,23 @@ window.TrendyAuth = {
     const visibleProducts = [];
     document.querySelectorAll('.product').forEach(card => {
       const settings = productSettings(card.dataset.reference);
+      const pageInfo = window.TrendyProductPages?.[card.dataset.reference];
+      const localizedName = pageInfo?.name?.[lang];
+      if (localizedName) {
+        card.dataset.name = localizedName;
+        const title = card.querySelector('h3');
+        const image = card.querySelector('.product-image img');
+        if (title) title.textContent = localizedName;
+        if (image) image.alt = localizedName;
+        card.querySelector('.product-image')?.setAttribute('aria-label', localizedName);
+      }
+      if (pageInfo?.url?.[lang] && !card.querySelector('.product-details-link')) {
+        const details = document.createElement('a');
+        details.className = 'product-details-link';
+        details.href = pageInfo.url[lang];
+        details.textContent = catalogCopy.details;
+        card.querySelector('.product-copy')?.append(details);
+      }
       const configuredImage = card.dataset.dynamic === 'true'
         ? new URL(`/assets/catalogo/${encodeURIComponent(card.dataset.reference)}.webp`, location.origin).href
         : safeImageUrl(settings.image);
@@ -551,7 +588,7 @@ window.TrendyAuth = {
         card.querySelector('.measure')?.after(price);
       }
       price.hidden = !isRegisteredClient() || settings.price == null;
-      price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · IVA no incluido`;
+      price.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · ${catalogCopy.vat}`;
     });
     const grid = document.querySelector('.product-grid');
     grid?.querySelectorAll('.catalog-family-heading').forEach(heading => heading.remove());
@@ -580,16 +617,16 @@ window.TrendyAuth = {
       });
     }
     const results = document.querySelector('.catalog-results');
-    if (results) results.textContent = `${visibleCount} producto${visibleCount === 1 ? '' : 's'}`;
+    if (results) results.textContent = `${visibleCount} ${visibleCount === 1 ? catalogCopy.product : catalogCopy.products}`;
   };
 
   const productGrid = document.querySelector('.product-grid');
   if (productGrid && !document.querySelector('.catalog-tools')) {
     const tools = document.createElement('div');
     tools.className = 'catalog-tools';
-    tools.innerHTML = `<label>Buscar producto<input class="catalog-search" type="search" placeholder="Referencia o nombre"></label>
-      <label>Color<select class="catalog-color"><option value="">Todos los colores</option>${COLORS.map(color => `<option value="${color}">${colorLabel(color)}</option>`).join('')}</select></label>
-      <label>Disponibilidad<select class="catalog-availability"><option value="all">Todos</option><option value="available">Disponibles</option></select></label>
+    tools.innerHTML = `<label>${catalogCopy.search}<input class="catalog-search" type="search" placeholder="${catalogCopy.placeholder}"></label>
+      <label>${catalogCopy.color}<select class="catalog-color"><option value="">${catalogCopy.allColors}</option>${COLORS.map(color => `<option value="${color}">${colorLabel(color)}</option>`).join('')}</select></label>
+      <label>${catalogCopy.availability}<select class="catalog-availability"><option value="all">${catalogCopy.all}</option><option value="available">${catalogCopy.available}</option></select></label>
       <p class="catalog-results"></p>`;
     productGrid.before(tools);
     tools.querySelector('.catalog-search').value = searchTerm;
@@ -881,7 +918,7 @@ window.TrendyAuth = {
       productModal.querySelector('h2').after(modalPrice);
     }
     modalPrice.hidden = !isRegisteredClient() || settings.price == null;
-    modalPrice.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · IVA no incluido`;
+    modalPrice.textContent = settings.price == null ? '' : `${window.TrendyCatalog?.formatPrice?.(settings.price) || settings.price.toFixed(2) + ' €'} · ${catalogCopy.vat}`;
     productModal.querySelector('.quantity input').value = 1;
     productModal.querySelector('.error').textContent = '';
     productModal.querySelector('.modal-card').scrollTop = 0;
@@ -904,7 +941,7 @@ window.TrendyAuth = {
       colorList.append(button);
     });
     if (!colors.length) {
-      productModal.querySelector('.error').textContent = 'Este producto no tiene colores disponibles actualmente.';
+      productModal.querySelector('.error').textContent = catalogCopy.noColors;
     }
 
     productModal.hidden = false;
@@ -954,7 +991,7 @@ window.TrendyAuth = {
     saveCart();
     const lines = cartModal.querySelector('.cart-lines');
     lines.innerHTML = cart.length
-      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${colorLabel(item.color)}">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="Eliminar ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${colorLabel(item.color)}</span> · ${item.qty} unidades${item.price == null ? '' : `<br><strong>${window.TrendyCatalog?.formatPrice?.(item.price * item.qty) || (item.price * item.qty).toFixed(2) + ' €'} IVA no incluido</strong>`}</div></div>`).join('')
+      ? cart.map((item, index) => `<div class="cart-line">${item.preview ? `<img class="cart-product-image" src="${item.preview}" alt="${item.ref} ${colorLabel(item.color)}" width="92" height="92" loading="lazy" decoding="async">` : ''}<div class="cart-product-copy"><button data-index="${index}" aria-label="${catalogCopy.remove} ${item.ref}">×</button><strong>${item.ref}</strong> · ${item.name}<br><span class="cart-color">${colorLabel(item.color)}</span> · ${item.qty} ${copy.units}${item.price == null ? '' : `<br><strong>${window.TrendyCatalog?.formatPrice?.(item.price * item.qty) || (item.price * item.qty).toFixed(2) + ' €'} ${catalogCopy.vat}</strong>`}</div></div>`).join('')
       : `<p class="empty">${copy.empty}</p>`;
 
     lines.querySelectorAll('button').forEach(button => {
@@ -1002,7 +1039,7 @@ window.TrendyAuth = {
     }
     const currentSettings = productSettings(selectedProduct.ref);
     if (currentSettings.active === false || currentSettings.colors?.[selectedColor] === false) {
-      productModal.querySelector('.error').textContent = 'Este producto o color ya no está disponible.';
+      productModal.querySelector('.error').textContent = catalogCopy.unavailable;
       return;
     }
 
